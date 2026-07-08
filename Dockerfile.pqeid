@@ -1,0 +1,32 @@
+FROM eclipse-temurin:21-jdk AS build
+WORKDIR /build
+COPY mvnw mvnw.cmd pom.xml ./
+COPY .mvn .mvn
+COPY pgp pgp
+COPY issuer-service/pom.xml issuer-service/pom.xml
+COPY issuer-service/specs issuer-service/specs
+COPY issuer-application/pom.xml issuer-application/pom.xml
+RUN ./mvnw dependency:go-offline -q
+COPY issuer-service/src issuer-service/src
+COPY issuer-application/src issuer-application/src
+RUN ./mvnw --batch-mode clean generate-resources install -DskipTests -q
+
+FROM eclipse-temurin:21-jre
+WORKDIR /app
+EXPOSE 8080
+
+COPY certs/root_ca_vi.crt /certs-app/root_ca_vi.crt
+RUN keytool -importcert \
+    -alias root_ca_vi \
+    -file /certs-app/root_ca_vi.crt \
+    -keystore $JAVA_HOME/lib/security/cacerts \
+    -storepass changeit \
+    -noprompt
+
+COPY --from=build /build/issuer-application/target/*.jar app.jar
+
+ENTRYPOINT ["java", \
+    "-Duser.timezone=Europe/Zurich", \
+    "-Dfile.encoding=UTF-8", \
+    "-Dspring.config.location=classpath:bootstrap.yml,classpath:application.yml,optional:file:/vault/secrets/database-credentials.yml", \
+    "-jar", "/app/app.jar"]
