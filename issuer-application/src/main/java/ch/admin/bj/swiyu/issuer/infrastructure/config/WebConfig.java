@@ -24,7 +24,11 @@ public class WebConfig implements WebMvcConfigurer {
     @Override
     public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**")
-                .allowedOrigins("https://confluence.bit.admin.ch")
+                .allowedOriginPatterns(
+                        "https://confluence.bit.admin.ch",
+                        "https://*.pqeid.g-roch.ch",
+                        "https://swiyu-admin-ch.github.io"
+                )
                 .allowedMethods("*");
     }
 
