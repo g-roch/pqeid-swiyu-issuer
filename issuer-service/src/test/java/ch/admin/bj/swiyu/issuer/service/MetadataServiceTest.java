@@ -18,10 +18,10 @@ import ch.admin.bj.swiyu.jwssignatureservice.factory.strategy.KeyStrategyExcepti
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSSigner;
-import com.nimbusds.jose.crypto.ECDSASigner;
-import com.nimbusds.jose.jwk.Curve;
-import com.nimbusds.jose.jwk.ECKey;
-import com.nimbusds.jose.jwk.gen.ECKeyGenerator;
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.crypto.MLDSASigner;
+import com.nimbusds.jose.jwk.MLDSAKey;
+import com.nimbusds.jose.jwk.gen.MLDSAKeyGenerator;
 import com.nimbusds.jwt.SignedJWT;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -120,7 +120,7 @@ class MetadataServiceTest {
         when(credentialManagementService.getConfigurationOverrideByTenantId(tenantId)).thenReturn(override);
 
         JWSSigner signer = mock(JWSSigner.class);
-        when(signer.sign(any(), any())).thenThrow(new JOSEException("bad"));
+        when(signer.sign(any(), any(byte[].class))).thenThrow(new JOSEException("bad"));
         when(jwsSignatureFacade.createSigner(sdjwtProperties, null, null)).thenReturn(signer);
 
         assertThrows(ConfigurationException.class, () -> metadataService.getSignedIssuerMetadata(tenantId));
@@ -212,7 +212,8 @@ class MetadataServiceTest {
         // ---------- arrange ----------
 
 
-        // Use a real ES256 signer (the same helper used in other tests)
+        // Use a real ML-DSA-44 signer (the same helper used in other tests) - MetadataService
+        // signs with JWSAlgorithm.ML_DSA_44, so the mocked signer must support it.
         JWSSigner signer = createDummySigner();
         when(jwsSignatureFacade.createSigner(sdjwtProperties, null, null))
                 .thenReturn(signer);
@@ -242,7 +243,7 @@ class MetadataServiceTest {
 
         // Mock a signer that fails when sign() is called
         JWSSigner failingSigner = mock(JWSSigner.class);
-        when(failingSigner.sign(any(), any()))
+        when(failingSigner.sign(any(), any(byte[].class)))
                 .thenThrow(new JOSEException("simulated signing failure"));
         when(jwsSignatureFacade.createSigner(sdjwtProperties, null, null))
                 .thenReturn(failingSigner);
@@ -254,10 +255,10 @@ class MetadataServiceTest {
     }
 
     private JWSSigner createDummySigner() throws JOSEException {
-        ECKey ecJWK = new ECKeyGenerator(Curve.P_256)
+        MLDSAKey mldsaJWK = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44)
                 .keyID("123")
                 .generate();
-        return new ECDSASigner(ecJWK);
+        return new MLDSASigner(mldsaJWK);
     }
 
 

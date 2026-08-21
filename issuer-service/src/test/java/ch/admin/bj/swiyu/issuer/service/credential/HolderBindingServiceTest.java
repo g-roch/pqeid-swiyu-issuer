@@ -16,10 +16,10 @@ import ch.admin.bj.swiyu.issuer.domain.openid.metadata.SupportedProofType;
 import ch.admin.bj.swiyu.issuer.service.MetadataService;
 import ch.admin.bj.swiyu.issuer.service.NonceService;
 import ch.admin.bj.swiyu.issuer.service.test.TestServiceUtils;
-import com.nimbusds.jose.jwk.Curve;
-import com.nimbusds.jose.jwk.ECKey;
+import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.jwk.KeyUse;
-import com.nimbusds.jose.jwk.gen.ECKeyGenerator;
+import com.nimbusds.jose.jwk.MLDSAKey;
+import com.nimbusds.jose.jwk.gen.MLDSAKeyGenerator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -42,7 +42,7 @@ class HolderBindingServiceTest {
     private IssuerMetadata issuerMetadata;
     private NonceService nonceService;
     private HolderBindingService holderBindingService;
-    private List<ECKey> holderKeys;
+    private List<MLDSAKey> holderKeys;
     private CredentialOffer offer;
     private CredentialConfiguration config;
     private CredentialManagement management;
@@ -73,7 +73,7 @@ class HolderBindingServiceTest {
                 metadataService, nonceService, keyAttestationService, applicationProperties
         );
 
-        holderKeys = IntStream.range(0, 3).boxed().map(i -> assertDoesNotThrow(() -> new ECKeyGenerator(Curve.P_256)
+        holderKeys = IntStream.range(0, 3).boxed().map(i -> assertDoesNotThrow(() -> new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44)
                 .keyUse(KeyUse.SIGNATURE)
                 .keyID("Test-Key-" + i)
                 .issueTime(new Date())
@@ -87,7 +87,7 @@ class HolderBindingServiceTest {
     @Test
     void returnsEmptyListIfNoProofTypesSupported() {
         SupportedProofType proofType = new SupportedProofType();
-        proofType.setSupportedSigningAlgorithms(List.of("ES256"));
+        proofType.setSupportedSigningAlgorithms(List.of("ML-DSA-44"));
         when(offer.getMetadataCredentialSupportedId()).thenReturn(List.of(supportedCredentialId));
         when(config.getProofTypesSupported()).thenReturn(null);
         List<String> proofs = List.of("Proof1", "Proof2");
@@ -104,7 +104,7 @@ class HolderBindingServiceTest {
     @Test
     void throwsIfNoProofsProvided() {
         SupportedProofType proofType = new SupportedProofType();
-        proofType.setSupportedSigningAlgorithms(List.of("ES256"));
+        proofType.setSupportedSigningAlgorithms(List.of("ML-DSA-44"));
         Map<String, SupportedProofType> proofTypesSupported = Map.of("jwt", proofType);
         when(offer.getMetadataCredentialSupportedId()).thenReturn(List.of(supportedCredentialId));
         when(config.getProofTypesSupported()).thenReturn(proofTypesSupported);
@@ -225,7 +225,7 @@ class HolderBindingServiceTest {
         when(mgmt.getAccessTokenExpirationTimestamp()).thenReturn(Instant.now().plusSeconds(600).getEpochSecond());
         CredentialConfiguration config = mock(CredentialConfiguration.class);
         SupportedProofType proofType = new SupportedProofType();
-        proofType.setSupportedSigningAlgorithms(List.of("ES256"));
+        proofType.setSupportedSigningAlgorithms(List.of("ML-DSA-44"));
         when(issuerMetadata.getCredentialConfigurationById(any())).thenReturn(config);
         when(config.getProofTypesSupported()).thenReturn(Map.of("jwt", proofType));
         mockBatchCredentialIssuance(3);
@@ -246,7 +246,7 @@ class HolderBindingServiceTest {
     void throwsInvalidNonceException_whenNonceIsReused() {
         // arrange: supported proof type
         SupportedProofType proofType = new SupportedProofType();
-        proofType.setSupportedSigningAlgorithms(List.of("ES256"));
+        proofType.setSupportedSigningAlgorithms(List.of("ML-DSA-44"));
         when(offer.getMetadataCredentialSupportedId()).thenReturn(List.of(supportedCredentialId));
         when(config.getProofTypesSupported()).thenReturn(Map.of("jwt", proofType));
 

@@ -14,11 +14,13 @@ import ch.admin.bj.swiyu.issuer.dto.oid4vci.issuance.CredentialObjectDto;
 import ch.admin.bj.swiyu.issuer.service.test.TestServiceUtils;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWEAlgorithm;
+import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSSigner;
-import com.nimbusds.jose.jwk.Curve;
-import com.nimbusds.jose.jwk.ECKey;
 import com.nimbusds.jose.jwk.KeyUse;
-import com.nimbusds.jose.jwk.gen.ECKeyGenerator;
+import com.nimbusds.jose.jwk.MLDSAKey;
+import com.nimbusds.jose.jwk.XWingKey;
+import com.nimbusds.jose.jwk.gen.MLDSAKeyGenerator;
+import com.nimbusds.jose.jwk.gen.XWingKeyGenerator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -138,7 +140,7 @@ class CredentialBuilderTest {
             }
         }).toList();
 
-        builder.holderBindings(privateKeys.stream().map(ECKey::toPublicJWK).map(Object::toString).toList());
+        builder.holderBindings(privateKeys.stream().map(MLDSAKey::toPublicJWK).map(Object::toString).toList());
         List<HolderKeyBinding> holderKeyBindings = list.stream()
                 .map(HolderKeyBinding::new)
                 .toList();
@@ -194,11 +196,11 @@ class CredentialBuilderTest {
     void buildEnvelopeDto_withEncryption_thenSuccess(String encAlg) throws JOSEException {
 
         var issuerCredentialResponseEncryption = new IssuerCredentialResponseEncryption();
-        issuerCredentialResponseEncryption.setAlgValuesSupported(List.of("ECDH-ES"));
+        issuerCredentialResponseEncryption.setAlgValuesSupported(List.of("XWING"));
         issuerCredentialResponseEncryption.setEncValuesSupported(List.of("A128GCM", "A256GCM"));
 
         when(issuerMetadata.getResponseEncryption()).thenReturn(issuerCredentialResponseEncryption);
-        var jwk = createPrivateKey().toPublicJWK().toJSONObject();
+        var jwk = createEncryptionKey().toPublicJWK().toJSONObject();
         CredentialResponseEncryptionClass encryptor = new CredentialResponseEncryptionClass(jwk, encAlg);
 
         builder.credentialResponseEncryption(issuerMetadata.getResponseEncryption(), encryptor);
@@ -299,12 +301,23 @@ class CredentialBuilderTest {
         assertTrue(deleted.contains(status2));
     }
 
-    private ECKey createPrivateKey() throws JOSEException {
-        return new ECKeyGenerator(Curve.P_256)
+    private MLDSAKey createPrivateKey() throws JOSEException {
+        return new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44)
                 .keyUse(KeyUse.SIGNATURE)
                 .keyID("Test-Key")
                 .issueTime(new Date())
-                .algorithm(JWEAlgorithm.ECDH_ES)
+                .generate();
+    }
+
+    // PQEID: dedicated encryption-key helper (ECDH-ES -> XWING) - createPrivateKey() above
+    // is for holder-binding proof SIGNATURE keys, a separate (already ML-DSA-migrated)
+    // algorithm family, not touched by this JWE/response-encryption migration.
+    private XWingKey createEncryptionKey() throws JOSEException {
+        return new XWingKeyGenerator()
+                .keyUse(KeyUse.ENCRYPTION)
+                .keyID("Test-Enc-Key")
+                .issueTime(new Date())
+                .algorithm(JWEAlgorithm.XWING)
                 .generate();
     }
 

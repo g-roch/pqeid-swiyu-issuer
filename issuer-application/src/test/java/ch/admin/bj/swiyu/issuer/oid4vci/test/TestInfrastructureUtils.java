@@ -15,13 +15,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.nimbusds.jose.*;
-import com.nimbusds.jose.crypto.ECDSASigner;
-import com.nimbusds.jose.crypto.ECDSAVerifier;
-import com.nimbusds.jose.jwk.Curve;
-import com.nimbusds.jose.jwk.ECKey;
+import com.nimbusds.jose.crypto.MLDSASigner;
+import com.nimbusds.jose.crypto.MLDSAVerifier;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.KeyUse;
-import com.nimbusds.jose.jwk.gen.ECKeyGenerator;
+import com.nimbusds.jose.jwk.MLDSAKey;
+import com.nimbusds.jose.jwk.gen.MLDSAKeyGenerator;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import jakarta.annotation.Nullable;
@@ -98,7 +97,7 @@ public class TestInfrastructureUtils {
             claimSetBuilder.claim("ath", Base64.getEncoder().encodeToString(MessageDigest.getInstance("SHA-256").digest(accessToken.getBytes(StandardCharsets.UTF_8))));
         }
 
-        JWSHeader.Builder headerBuilder = new JWSHeader.Builder(JWSAlgorithm.ES256)
+        JWSHeader.Builder headerBuilder = new JWSHeader.Builder(JWSAlgorithm.ML_DSA_44)
                 .jwk(dpopKey.toPublicJWK())
                 .type(new JOSEObjectType("dpop+jwt"))
                 .customParam(SwissProfileVersions.PROFILE_VERSION_PARAM, SwissProfileVersions.ISSUANCE_PROFILE_VERSION);
@@ -109,7 +108,7 @@ public class TestInfrastructureUtils {
         var signedJwt = new SignedJWT(
                 headerBuilder.build(),
                 claimSetBuilder.build());
-        signedJwt.sign(new ECDSASigner(dpopKey.toECKey()));
+        signedJwt.sign(new MLDSASigner(dpopKey.toMLDSAKey()));
         return signedJwt.serialize();
     }
 
@@ -183,7 +182,7 @@ public class TestInfrastructureUtils {
 
     public static void verifyVC(SdjwtProperties sdjwtProperties, String vc, Map<String, String> credentialSubjectData) throws Exception {
 
-        var keyPair = ECKey.parseFromPEMEncodedObjects(sdjwtProperties.getPrivateKey());
+        var keyPair = JWK.parseFromPEMEncodedObjects(sdjwtProperties.getPrivateKey()).toMLDSAKey();
         var publicJWK = keyPair.toPublicJWK();
         var sdJwtTokenParts = vc.split("~");
         var jwt = sdJwtTokenParts[0];
@@ -212,7 +211,7 @@ public class TestInfrastructureUtils {
             JWK jwk = JWK.parse(publicKeyJwk);
 
             // Create a JWSVerifier with the public key
-            JWSVerifier verifier = new ECDSAVerifier(jwk.toECKey());
+            JWSVerifier verifier = new MLDSAVerifier(jwk.toMLDSAKey());
 
             // Verify the signature
             return signedJWT.verify(verifier);
@@ -223,7 +222,7 @@ public class TestInfrastructureUtils {
 
     public static CredentialFetchData prepareAttestedVC(MockMvc mock, UUID preAuthCode,
                                                         AttackPotentialResistance resistance, String attestationIssuerDid,
-                                                        ECKey jwk, String issuerId, String nonce, String credentialConfigId) throws Exception {
+                                                        MLDSAKey jwk, String issuerId, String nonce, String credentialConfigId) throws Exception {
         var tokenResponse = TestInfrastructureUtils.fetchOAuthToken(mock, preAuthCode.toString());
         var token = tokenResponse.get("access_token");
         Assertions.assertThat(token).isNotNull();
@@ -243,8 +242,8 @@ public class TestInfrastructureUtils {
         return new CredentialOfferMetadataDto(true, null, null);
     }
 
-    public static ECKey createEcKey(String keyId) throws JOSEException {
-        return new ECKeyGenerator(Curve.P_256)
+    public static MLDSAKey createHolderKey(String keyId) throws JOSEException {
+        return new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44)
                 .keyUse(KeyUse.SIGNATURE)
                 .keyID(keyId)
                 .issueTime(new Date())

@@ -4,11 +4,10 @@ import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
-import com.nimbusds.jose.crypto.ECDSASigner;
-import com.nimbusds.jose.jwk.Curve;
-import com.nimbusds.jose.jwk.ECKey;
+import com.nimbusds.jose.crypto.MLDSASigner;
 import com.nimbusds.jose.jwk.KeyUse;
-import com.nimbusds.jose.jwk.gen.ECKeyGenerator;
+import com.nimbusds.jose.jwk.MLDSAKey;
+import com.nimbusds.jose.jwk.gen.MLDSAKeyGenerator;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import org.junit.jupiter.api.Assertions;
@@ -34,8 +33,8 @@ class AttestationJwtTest {
             "did:example:trusted-fake#key-1, did:example:trusted"
     })
     void whenDivergingIssuerAndKid_thenThrowIllegalArgumentException(String attackerKeyID, String issuerDid) throws JOSEException {
-        var signingKey = new ECKeyGenerator(Curve.P_256).keyID(attackerKeyID).keyUse(KeyUse.SIGNATURE).generate();
-        var attestation = new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.ES256)
+        var signingKey = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44).keyID(attackerKeyID).keyUse(KeyUse.SIGNATURE).generate();
+        var attestation = new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.ML_DSA_44)
                 .keyID(signingKey.getKeyID())
                 .type(new JOSEObjectType("key-attestation+jwt"))
                 .customParam("profile_version", "swiss-profile-issuance:1.0.0")
@@ -46,7 +45,7 @@ class AttestationJwtTest {
                         .expirationTime(Date.from(Instant.now().plusSeconds(5)))
                         .claim("attested_keys", List.of(signingKey.toPublicJWK().toJSONObject()))
                         .build());
-        attestation.sign(new ECDSASigner(signingKey));
+        attestation.sign(new MLDSASigner(signingKey));
         var parsedJwt = attestation.serialize();
         Assertions.assertThrows(IllegalArgumentException.class,
                 () -> AttestationJwt.parseJwt(parsedJwt, true));
@@ -61,8 +60,8 @@ class AttestationJwtTest {
             "did:example:trusted-fake#key-1, did:example:trusted"
     })
     void whenDivergingIssuerAndKidUsingKeyStorage_thenThrowIllegalArgumentException(String attackerKeyID, String issuerDid) throws JOSEException {
-        var signingKey = new ECKeyGenerator(Curve.P_256).keyID(attackerKeyID).keyUse(KeyUse.SIGNATURE).generate();
-        var attestation = new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.ES256)
+        var signingKey = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44).keyID(attackerKeyID).keyUse(KeyUse.SIGNATURE).generate();
+        var attestation = new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.ML_DSA_44)
                 .keyID(signingKey.getKeyID())
                 .type(new JOSEObjectType("key-attestation+jwt"))
                 .customParam("profile_version", "swiss-profile-issuance:1.0.0")
@@ -74,7 +73,7 @@ class AttestationJwtTest {
                         .claim("attested_keys", List.of(signingKey.toPublicJWK().toJSONObject()))
                         .claim("key_storage", List.of(AttackPotentialResistance.ISO_18045_ENHANCED_BASIC.getValue()))
                         .build());
-        attestation.sign(new ECDSASigner(signingKey));
+        attestation.sign(new MLDSASigner(signingKey));
         var parsedJwt = attestation.serialize();
         Assertions.assertThrows(IllegalArgumentException.class,
                 () -> AttestationJwt.parseJwt(parsedJwt , true));
@@ -82,8 +81,8 @@ class AttestationJwtTest {
 
     @Test
     void whenMissingProfileVersionHeader_thenThrowIllegalArgumentException() throws JOSEException {
-        var signingKey = new ECKeyGenerator(Curve.P_256).keyID("did:example:issuer#key-1").keyUse(KeyUse.SIGNATURE).generate();
-        var attestation = new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.ES256)
+        var signingKey = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44).keyID("did:example:issuer#key-1").keyUse(KeyUse.SIGNATURE).generate();
+        var attestation = new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.ML_DSA_44)
                 .keyID(signingKey.getKeyID())
                 .type(new JOSEObjectType("key-attestation+jwt"))
                 // intentionally no profile_version
@@ -95,7 +94,7 @@ class AttestationJwtTest {
                         .claim("attested_keys", List.of(signingKey.toPublicJWK().toJSONObject()))
                         .claim("key_storage", List.of(AttackPotentialResistance.ISO_18045_ENHANCED_BASIC.getValue()))
                         .build());
-        attestation.sign(new ECDSASigner(signingKey));
+        attestation.sign(new MLDSASigner(signingKey));
         var parsedJwt = attestation.serialize();
 
         Assertions.assertThrows(IllegalArgumentException.class,
@@ -110,9 +109,9 @@ class AttestationJwtTest {
     @Test
     @DisplayName("containsKey returns true when proof key is the second attested key (multi-key iteration)")
     void containsKey_proofKeyIsSecondAttestedKey_returnsTrue() throws JOSEException, ParseException {
-        var issuerKey = new ECKeyGenerator(Curve.P_256).keyID("did:example:issuer#key-1").keyUse(KeyUse.SIGNATURE).generate();
-        var firstAttestedKey = new ECKeyGenerator(Curve.P_256).keyUse(KeyUse.SIGNATURE).generate();
-        var secondAttestedKey = new ECKeyGenerator(Curve.P_256).keyUse(KeyUse.SIGNATURE).generate();
+        var issuerKey = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44).keyID("did:example:issuer#key-1").keyUse(KeyUse.SIGNATURE).generate();
+        var firstAttestedKey = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44).keyUse(KeyUse.SIGNATURE).generate();
+        var secondAttestedKey = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44).keyUse(KeyUse.SIGNATURE).generate();
 
         AttestationJwt attestation = buildAttestation(issuerKey, List.of(firstAttestedKey, secondAttestedKey));
 
@@ -125,9 +124,9 @@ class AttestationJwtTest {
     @Test
     @DisplayName("containsKey returns true when proof key is the first attested key")
     void containsKey_proofKeyIsFirstAttestedKey_returnsTrue() throws JOSEException, ParseException {
-        var issuerKey = new ECKeyGenerator(Curve.P_256).keyID("did:example:issuer#key-1").keyUse(KeyUse.SIGNATURE).generate();
-        var firstAttestedKey = new ECKeyGenerator(Curve.P_256).keyUse(KeyUse.SIGNATURE).generate();
-        var secondAttestedKey = new ECKeyGenerator(Curve.P_256).keyUse(KeyUse.SIGNATURE).generate();
+        var issuerKey = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44).keyID("did:example:issuer#key-1").keyUse(KeyUse.SIGNATURE).generate();
+        var firstAttestedKey = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44).keyUse(KeyUse.SIGNATURE).generate();
+        var secondAttestedKey = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44).keyUse(KeyUse.SIGNATURE).generate();
 
         AttestationJwt attestation = buildAttestation(issuerKey, List.of(firstAttestedKey, secondAttestedKey));
 
@@ -141,10 +140,10 @@ class AttestationJwtTest {
     @Test
     @DisplayName("containsKey returns false when proof key is absent from all attested keys")
     void containsKey_proofKeyNotInAttestedKeys_returnsFalse() throws JOSEException, ParseException {
-        var issuerKey = new ECKeyGenerator(Curve.P_256).keyID("did:example:issuer#key-1").keyUse(KeyUse.SIGNATURE).generate();
-        var firstAttestedKey = new ECKeyGenerator(Curve.P_256).keyUse(KeyUse.SIGNATURE).generate();
-        var secondAttestedKey = new ECKeyGenerator(Curve.P_256).keyUse(KeyUse.SIGNATURE).generate();
-        var attackerKey = new ECKeyGenerator(Curve.P_256).keyUse(KeyUse.SIGNATURE).generate();
+        var issuerKey = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44).keyID("did:example:issuer#key-1").keyUse(KeyUse.SIGNATURE).generate();
+        var firstAttestedKey = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44).keyUse(KeyUse.SIGNATURE).generate();
+        var secondAttestedKey = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44).keyUse(KeyUse.SIGNATURE).generate();
+        var attackerKey = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44).keyUse(KeyUse.SIGNATURE).generate();
 
         AttestationJwt attestation = buildAttestation(issuerKey, List.of(firstAttestedKey, secondAttestedKey));
 
@@ -159,13 +158,13 @@ class AttestationJwtTest {
      * Builds a minimal but structurally valid {@link AttestationJwt} signed by {@code issuerKey}
      * and containing all {@code attestedKeys} in its {@code attested_keys} claim.
      */
-    private AttestationJwt buildAttestation(ECKey issuerKey, List<ECKey> attestedKeys) throws JOSEException, ParseException {
+    private AttestationJwt buildAttestation(MLDSAKey issuerKey, List<MLDSAKey> attestedKeys) throws JOSEException, ParseException {
         var attestedKeyObjects = attestedKeys.stream()
                 .map(k -> k.toPublicJWK().toJSONObject())
                 .toList();
 
         var signedJwt = new SignedJWT(
-                new JWSHeader.Builder(JWSAlgorithm.ES256)
+                new JWSHeader.Builder(JWSAlgorithm.ML_DSA_44)
                         .keyID(issuerKey.getKeyID())
                         .type(new JOSEObjectType("key-attestation+jwt"))
                         .build(),
@@ -176,7 +175,7 @@ class AttestationJwtTest {
                         .claim("attested_keys", attestedKeyObjects)
                         .claim("key_storage", List.of(AttackPotentialResistance.ISO_18045_HIGH.getValue()))
                         .build());
-        signedJwt.sign(new ECDSASigner(issuerKey));
+        signedJwt.sign(new MLDSASigner(issuerKey));
 
         return AttestationJwt.parseJwt(signedJwt.serialize(), false);
     }

@@ -7,11 +7,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
-import com.nimbusds.jose.crypto.ECDSASigner;
-import com.nimbusds.jose.jwk.Curve;
-import com.nimbusds.jose.jwk.ECKey;
+import com.nimbusds.jose.crypto.MLDSASigner;
 import com.nimbusds.jose.jwk.JWKSet;
-import com.nimbusds.jose.jwk.gen.ECKeyGenerator;
+import com.nimbusds.jose.jwk.MLDSAKey;
+import com.nimbusds.jose.jwk.gen.MLDSAKeyGenerator;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import org.junit.jupiter.api.Assertions;
@@ -28,23 +27,26 @@ import java.util.Map;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+// DataIntegrityService.verifyDataIntegrityJWT() delegates to swiyu-jwt-util's
+// JwtUtil.verifyJwt(), whose VERIFIER_FACTORIES map only has an entry for KeyType.AKP
+// (ML-DSA) - so these test JWTs must be signed with ML-DSA-44.
 class DataIntegrityServiceTest {
 
-    private static ECKey ecKey = null;
+    private static MLDSAKey mldsaKey = null;
     private DataIntegrityService dataIntegrityService;
     private ApplicationProperties applicationProperties;
     private ObjectMapper objectMapper;
 
     @BeforeAll
     static void init() throws JOSEException {
-        ecKey = new ECKeyGenerator(Curve.P_256).keyID("123").generate();
+        mldsaKey = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44).keyID("123").generate();
     }
 
     @BeforeEach
     void setUp() {
         objectMapper = new ObjectMapper();
         applicationProperties = mock(ApplicationProperties.class);
-        when(applicationProperties.getDataIntegrityKeySet()).thenReturn(new JWKSet(ecKey.toPublicJWK()));
+        when(applicationProperties.getDataIntegrityKeySet()).thenReturn(new JWKSet(mldsaKey.toPublicJWK()));
 
         dataIntegrityService = new DataIntegrityService(applicationProperties, objectMapper);
     }
@@ -79,7 +81,7 @@ class DataIntegrityServiceTest {
     @ValueSource(booleans = {true, false})
     void testSignedData_whenEnforced_thenSuccess(boolean informDataIntegrity) throws ParseException, JOSEException {
         var offerData = getTestData();
-        var wrappedData = wrapTestDataSigned(offerData, ecKey);
+        var wrappedData = wrapTestDataSigned(offerData, mldsaKey);
         if (informDataIntegrity) {
             wrappedData.put("data_integrity", "jwt");
         }
@@ -98,9 +100,9 @@ class DataIntegrityServiceTest {
         return wrapped;
     }
 
-    private Map<String, Object> wrapTestDataSigned(Map<String, Object> data, ECKey key) throws ParseException, JOSEException {
-        var jwt = new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.ES256).keyID(key.getKeyID()).build(), JWTClaimsSet.parse(data));
-        jwt.sign(new ECDSASigner(key));
+    private Map<String, Object> wrapTestDataSigned(Map<String, Object> data, MLDSAKey key) throws ParseException, JOSEException {
+        var jwt = new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.ML_DSA_44).keyID(key.getKeyID()).build(), JWTClaimsSet.parse(data));
+        jwt.sign(new MLDSASigner(key));
         Map<String, Object> wrapped = new HashMap<>();
         wrapped.put("data", jwt.serialize());
         return wrapped;

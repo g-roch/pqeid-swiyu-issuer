@@ -30,11 +30,10 @@ import org.springframework.http.server.ServletServerHttpRequest;
 import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
-import com.nimbusds.jose.crypto.ECDSASigner;
-import com.nimbusds.jose.jwk.Curve;
-import com.nimbusds.jose.jwk.ECKey;
+import com.nimbusds.jose.crypto.MLDSASigner;
 import com.nimbusds.jose.jwk.KeyUse;
-import com.nimbusds.jose.jwk.gen.ECKeyGenerator;
+import com.nimbusds.jose.jwk.MLDSAKey;
+import com.nimbusds.jose.jwk.gen.MLDSAKeyGenerator;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
@@ -66,7 +65,7 @@ class DemonstratingProofOfPossessionServiceTest {
     private OAuthService oAuthService;
     private CredentialOfferRepository credentialOfferRepository;
     private CredentialManagementRepository credentialManagementRepository;
-    private ECKey dpopKey;
+    private MLDSAKey dpopKey;
     private IssuerSecret nonceSecret;
     private MetadataService metadataService;
 
@@ -92,7 +91,7 @@ class DemonstratingProofOfPossessionServiceTest {
                 keyAttestationService
 
         );
-        dpopKey = assertDoesNotThrow(() -> new ECKeyGenerator(Curve.P_256)
+        dpopKey = assertDoesNotThrow(() -> new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44)
                 .keyID("HolderDPoPKey")
                 .keyUse(KeyUse.SIGNATURE)
                 .generate());
@@ -320,7 +319,7 @@ class DemonstratingProofOfPossessionServiceTest {
 
     @Test
     void validateDPoPKeyAttestation_whenNoKeyAttestation_throwsDemonstratingProofOfPossessionException() {
-        var headerBuilder = new JWSHeader.Builder(JWSAlgorithm.ES256);
+        var headerBuilder = new JWSHeader.Builder(JWSAlgorithm.ML_DSA_44);
         var emptyBody = new JWTClaimsSet.Builder().build();
         // Test with completely missing header
         var emptyJWT = new SignedJWT(headerBuilder.build(), emptyBody);
@@ -334,11 +333,11 @@ class DemonstratingProofOfPossessionServiceTest {
             () -> demonstratingProofOfPossessionService.validateDPoPKeyAttestation(nullAttestationJWT));
     }
 
-    private SignedJWT createDpopJwt(String httpMethod, String httpUri, String accessToken, ECKey dpopKey) {
+    private SignedJWT createDpopJwt(String httpMethod, String httpUri, String accessToken, MLDSAKey dpopKey) {
         return createDpopJwt(httpMethod, httpUri, accessToken, dpopKey, true);
     }
 
-    private SignedJWT createDpopJwt(String httpMethod, String httpUri, String accessToken, ECKey dpopKey, boolean includeProfileVersion) {
+    private SignedJWT createDpopJwt(String httpMethod, String httpUri, String accessToken, MLDSAKey dpopKey, boolean includeProfileVersion) {
         // Fetch a fresh nonce
         var httpHeader = new HttpHeaders();
         demonstratingProofOfPossessionService.addDpopNonce(httpHeader);
@@ -355,7 +354,7 @@ class DemonstratingProofOfPossessionServiceTest {
             claimSetBuilder.claim("ath", Base64.getUrlEncoder().encodeToString(assertDoesNotThrow(() -> MessageDigest.getInstance("SHA-256")).digest(accessToken.getBytes(StandardCharsets.UTF_8))));
         }
 
-        var headerBuilder = new JWSHeader.Builder(JWSAlgorithm.ES256)
+        var headerBuilder = new JWSHeader.Builder(JWSAlgorithm.ML_DSA_44)
                 .jwk(dpopKey.toPublicJWK())
                 .type(new JOSEObjectType("dpop+jwt"));
         if (includeProfileVersion) {
@@ -365,8 +364,8 @@ class DemonstratingProofOfPossessionServiceTest {
     }
 
 
-    private String signAndSerialize(SignedJWT signedJwt, ECKey dpopKey) {
-        assertDoesNotThrow(() -> signedJwt.sign(new ECDSASigner(dpopKey)));
+    private String signAndSerialize(SignedJWT signedJwt, MLDSAKey dpopKey) {
+        assertDoesNotThrow(() -> signedJwt.sign(new MLDSASigner(dpopKey)));
         return signedJwt.serialize();
     }
 

@@ -11,10 +11,10 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.nimbusds.jose.JOSEException;
-import com.nimbusds.jose.jwk.Curve;
-import com.nimbusds.jose.jwk.ECKey;
+import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.jwk.KeyUse;
-import com.nimbusds.jose.jwk.gen.ECKeyGenerator;
+import com.nimbusds.jose.jwk.MLDSAKey;
+import com.nimbusds.jose.jwk.gen.MLDSAKeyGenerator;
 import com.nimbusds.jwt.SignedJWT;
 import lombok.experimental.UtilityClass;
 import org.springframework.http.MediaType;
@@ -47,7 +47,7 @@ public class IssuanceTestUtils {
         );
     }
 
-    public static ResultActions requestCredentialWithDpop(MockMvc mock, String token, String credentialRequestString, IssuerMetadata issuerMetadata, ECKey dpopKey) throws Exception {
+    public static ResultActions requestCredentialWithDpop(MockMvc mock, String token, String credentialRequestString, IssuerMetadata issuerMetadata, MLDSAKey dpopKey) throws Exception {
         return mock.perform(post("/oid4vci/api/credential")
                 .header("Authorization", String.format("BEARER %s", token))
                 .header("SWIYU-API-Version", "2")
@@ -93,18 +93,17 @@ public class IssuanceTestUtils {
 
     /**
      * Tests that the public components of the holderPrivateKey are in the VC's cnf claim
-     * 
+     *
      * "cnf":{
      *   "jwk":{
-     *     "kty": "EC",
+     *     "kty": "AKP",
      *     "use": "sig",
-     *     "crv": "P-256",
-     *     "x": "18wHLeIgW9wVN6VD1Txgpqy2LszYkMf6J8njVAibvhM",
-     *     "y": "-V4dS4UaLMgP_4fY4j8ir7cl1TXlFdAgcx55o7TkcSA"
+     *     "alg": "ML-DSA-44",
+     *     "pub": "nO4QQXFR..."
      *    }
      *  }
      */
-    public void testHolderBinding(String vc, ECKey holderPrivateKey) throws ParseException {
+    public void testHolderBinding(String vc, MLDSAKey holderPrivateKey) throws ParseException {
         JsonObject claims = getVcClaims(vc);
         assertNotNull(claims.get("cnf"));
         JsonObject cnf = claims.get("cnf").getAsJsonObject();
@@ -113,9 +112,9 @@ public class IssuanceTestUtils {
 
         assertNotNull(cnfJwk);
         assertEquals(holderPrivateKey.getKeyID(), cnfJwk.get("kid").getAsString());
-        assertEquals(holderPrivateKey.getCurve().toString(), cnfJwk.get("crv").getAsString());
-        assertEquals(holderPrivateKey.getX().toString(), cnfJwk.get("x").getAsString());
-        assertEquals(holderPrivateKey.getY().toString(), cnfJwk.get("y").getAsString());
+        assertEquals("AKP", cnfJwk.get("kty").getAsString());
+        var expectedPub = holderPrivateKey.toPublicJWK().toJSONObject().get("pub").toString();
+        assertEquals(expectedPub, cnfJwk.get("pub").getAsString());
     }
 
     public static JsonObject getVcClaims(String vc) throws ParseException {
@@ -123,14 +122,14 @@ public class IssuanceTestUtils {
         return JsonParser.parseString(jwt.getPayload().toString()).getAsJsonObject();
     }
 
-    public static String getCredentialRequestString(MockMvc mock, List<ECKey> holderPrivateKeys, ApplicationProperties applicationProperties, String encryption, String credentialConfigurationId) throws Exception {
+    public static String getCredentialRequestString(MockMvc mock, List<MLDSAKey> holderPrivateKeys, ApplicationProperties applicationProperties, String encryption, String credentialConfigurationId) throws Exception {
 
         var nonceResponse = mock.perform(post("/oid4vci/api/nonce")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         JsonObject nonceResponseJson = JsonParser.parseString(nonceResponse).getAsJsonObject();
         String nonce = nonceResponseJson.get("c_nonce").getAsString();
 
         List<String> proofs = new ArrayList<>(holderPrivateKeys.size());
-        for (ECKey holderPrivateKey : holderPrivateKeys) {
+        for (MLDSAKey holderPrivateKey : holderPrivateKeys) {
             String proof = TestServiceUtils.createHolderProof(holderPrivateKey, applicationProperties.getTemplateReplacement().get("external-url"),
                     nonce,
                     ProofType.JWT.getClaimTyp()
@@ -146,20 +145,20 @@ public class IssuanceTestUtils {
         }
     }
 
-    public static String getCredentialRequestString(MockMvc mock, List<ECKey> holderPrivateKeys, ApplicationProperties applicationProperties, String credentialConfigurationId) throws Exception {
+    public static String getCredentialRequestString(MockMvc mock, List<MLDSAKey> holderPrivateKeys, ApplicationProperties applicationProperties, String credentialConfigurationId) throws Exception {
         return getCredentialRequestString(mock, holderPrivateKeys, applicationProperties, null, credentialConfigurationId);
     }
 
-    public static List<ECKey> createHolderPrivateKeys(int numberOfKeys) throws JOSEException {
-        List<ECKey> holderPrivateKeys = new ArrayList<>(numberOfKeys);
+    public static List<MLDSAKey> createHolderPrivateKeys(int numberOfKeys) throws JOSEException {
+        List<MLDSAKey> holderPrivateKeys = new ArrayList<>(numberOfKeys);
         for (int i = 0; i < numberOfKeys; i++) {
             holderPrivateKeys.add(createPrivateKey("Test-Key-" + i));
         }
         return holderPrivateKeys;
     }
 
-    public static ECKey createPrivateKey(String keyName) throws JOSEException {
-        return new ECKeyGenerator(Curve.P_256)
+    public static MLDSAKey createPrivateKey(String keyName) throws JOSEException {
+        return new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44)
                 .keyUse(KeyUse.SIGNATURE)
                 .keyID(keyName)
                 .issueTime(new Date())
@@ -199,7 +198,7 @@ public class IssuanceTestUtils {
     }
 
 
-    public static String createDpop(MockMvc mockMvc, String nonceEndpoint, String httpMethod, String httpUri, String accessToken, ECKey dpopKey) {
+    public static String createDpop(MockMvc mockMvc, String nonceEndpoint, String httpMethod, String httpUri, String accessToken, MLDSAKey dpopKey) {
         // Fetch a fresh nonce
         var nonceResponse = assertDoesNotThrow(() -> mockMvc.perform(post(nonceEndpoint))
                 .andExpect(status().isOk())

@@ -10,7 +10,7 @@ import ch.admin.bj.swiyu.issuer.domain.credentialoffer.StatusListRepository;
 import ch.admin.bj.swiyu.issuer.domain.openid.metadata.IssuerMetadata;
 import ch.admin.bj.swiyu.issuer.management.infrastructure.web.controller.CredentialOfferTestHelper;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nimbusds.jose.crypto.ECDSAVerifier;
+import com.nimbusds.jose.crypto.MLDSAVerifier;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jwt.SignedJWT;
 import org.hamcrest.Matchers;
@@ -130,7 +130,7 @@ class WellKnownControllerIT {
         var header = issuerMetadataJwt.getHeader();
 
         assertEquals("openidvci-issuer-metadata+jwt", header.getType().getType());
-        assertEquals("ES256", header.getAlgorithm().getName());
+        assertEquals("ML-DSA-44", header.getAlgorithm().getName());
         assertEquals(SwissProfileVersions.ISSUANCE_PROFILE_VERSION, header.getCustomParam(SwissProfileVersions.PROFILE_VERSION_PARAM));
     }
 
@@ -168,16 +168,15 @@ class WellKnownControllerIT {
     void testWellknownJwksComplete() {
         assertDoesNotThrow(() -> mock.perform(get("/oid4vci/.well-known/openid-credential-issuer").accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.credential_request_encryption.jwks.keys[0].kty").value("EC"))
-                .andExpect(jsonPath("$.credential_request_encryption.jwks.keys[0].crv").value("P-256"))
-                .andExpect(jsonPath("$.credential_request_encryption.jwks.keys[0].alg").value("ECDH-ES")));
+                .andExpect(jsonPath("$.credential_request_encryption.jwks.keys[0].kty").value("XWING"))
+                .andExpect(jsonPath("$.credential_request_encryption.jwks.keys[0].alg").value("XWING")));
     }
 
     @Test
     void testGetIssuerSignedMetadataSubject_thenSuccess() throws Exception {
         var url = testHelper.createBasicOfferJsonAndGetTenantID();
-        var issuerPublicKey = assertDoesNotThrow(() -> JWK.parseFromPEMEncodedObjects(sdjwtProperties.getPrivateKey()).toECKey().toECPublicKey());
-        var issuerSignatureVerifier = assertDoesNotThrow(() -> new ECDSAVerifier(issuerPublicKey));
+        var issuerPublicKey = assertDoesNotThrow(() -> JWK.parseFromPEMEncodedObjects(sdjwtProperties.getPrivateKey()).toMLDSAKey().toPublicJWK());
+        var issuerSignatureVerifier = assertDoesNotThrow(() -> new MLDSAVerifier(issuerPublicKey));
 
         // openid-credential-issuer
         var issuerMetadataResponse = assertDoesNotThrow(() -> mock.perform(get(
@@ -214,8 +213,8 @@ class WellKnownControllerIT {
 
     @Test
     void testGetIssuerMetadata_PreferSigned() throws Exception {
-        var issuerPublicKey = assertDoesNotThrow(() -> JWK.parseFromPEMEncodedObjects(sdjwtProperties.getPrivateKey()).toECKey().toECPublicKey());
-        var issuerSignatureVerifier = assertDoesNotThrow(() -> new ECDSAVerifier(issuerPublicKey));
+        var issuerPublicKey = assertDoesNotThrow(() -> JWK.parseFromPEMEncodedObjects(sdjwtProperties.getPrivateKey()).toMLDSAKey().toPublicJWK());
+        var issuerSignatureVerifier = assertDoesNotThrow(() -> new MLDSAVerifier(issuerPublicKey));
 
         // when json and jwt are allowed, prefer jwt
         var url = testHelper.createBasicOfferJsonAndGetTenantID();

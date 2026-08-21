@@ -6,10 +6,10 @@ import ch.admin.bj.swiyu.issuer.domain.openid.credentialrequest.holderbinding.*;
 import ch.admin.bj.swiyu.issuer.domain.openid.metadata.KeyAttestationRequirement;
 import ch.admin.bj.swiyu.issuer.domain.openid.metadata.SupportedProofType;
 import com.nimbusds.jose.JOSEException;
-import com.nimbusds.jose.jwk.Curve;
-import com.nimbusds.jose.jwk.ECKey;
+import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.jwk.KeyUse;
-import com.nimbusds.jose.jwk.gen.ECKeyGenerator;
+import com.nimbusds.jose.jwk.MLDSAKey;
+import com.nimbusds.jose.jwk.gen.MLDSAKeyGenerator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
@@ -88,7 +88,7 @@ class KeyAttestationServiceTest {
         ProofJwt proofJwt = mock(ProofJwt.class);
         AttestationJwt attestationJwt = mock(AttestationJwt.class);
 
-        ECKey proofKey = new ECKeyGenerator(Curve.P_256).keyUse(KeyUse.SIGNATURE).generate();
+        MLDSAKey proofKey = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44).keyUse(KeyUse.SIGNATURE).generate();
         when(proofJwt.getAttestationJwt()).thenReturn(jwt);
         when(proofJwt.getBinding()).thenReturn(proofKey.toPublicJWK().toJSONString());
 
@@ -96,7 +96,7 @@ class KeyAttestationServiceTest {
             staticMock.when(() -> AttestationJwt.parseJwt(jwt, false)).thenReturn(attestationJwt);
             when(applicationProperties.getTrustedAttestationProviders()).thenReturn(Collections.emptyList());
             when(attestationJwt.isValidAttestation(keyResolver, List.of(AttackPotentialResistance.ISO_18045_HIGH))).thenReturn(true);
-            when(attestationJwt.containsKey(any(ECKey.class))).thenReturn(true);
+            when(attestationJwt.containsKey(any(MLDSAKey.class))).thenReturn(true);
             assertDoesNotThrow(() -> keyAttestationService.getAndValidateKeyAttestation(requirement, proofJwt));
         }
     }
@@ -190,7 +190,7 @@ class KeyAttestationServiceTest {
         AttestationJwt attestationJwt = mock(AttestationJwt.class);
 
         // Key B – the attacker-controlled proof signing key (not attested)
-        ECKey keyB = new ECKeyGenerator(Curve.P_256).keyUse(KeyUse.SIGNATURE).generate();
+        MLDSAKey keyB = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44).keyUse(KeyUse.SIGNATURE).generate();
         when(proofJwt.getAttestationJwt()).thenReturn(jwt);
         when(proofJwt.getBinding()).thenReturn(keyB.toPublicJWK().toJSONString());
 
@@ -199,7 +199,7 @@ class KeyAttestationServiceTest {
             when(applicationProperties.getTrustedAttestationProviders()).thenReturn(Collections.emptyList());
             when(attestationJwt.isValidAttestation(keyResolver, List.of(AttackPotentialResistance.ISO_18045_HIGH))).thenReturn(true);
             // containsKey returns false: Key B is NOT in the attestation for Key A
-            when(attestationJwt.containsKey(any(ECKey.class))).thenReturn(false);
+            when(attestationJwt.containsKey(any(MLDSAKey.class))).thenReturn(false);
 
             Oid4vcException ex = assertThrows(Oid4vcException.class, () ->
                     keyAttestationService.getAndValidateKeyAttestation(requirement, proofJwt));

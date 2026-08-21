@@ -23,12 +23,13 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.dockerjava.zerodep.shaded.org.apache.hc.core5.net.URLEncodedUtils;
 import com.nimbusds.jose.*;
-import com.nimbusds.jose.crypto.ECDHDecrypter;
-import com.nimbusds.jose.crypto.ECDHEncrypter;
-import com.nimbusds.jose.crypto.ECDSASigner;
-import com.nimbusds.jose.crypto.ECDSAVerifier;
+import com.nimbusds.jose.crypto.XWingDecrypter;
+import com.nimbusds.jose.crypto.XWingEncrypter;
+import com.nimbusds.jose.crypto.MLDSASigner;
+import com.nimbusds.jose.crypto.MLDSAVerifier;
 import com.nimbusds.jose.jwk.*;
-import com.nimbusds.jose.jwk.gen.ECKeyGenerator;
+import com.nimbusds.jose.jwk.gen.MLDSAKeyGenerator;
+import com.nimbusds.jose.jwk.gen.XWingKeyGenerator;
 import com.nimbusds.jwt.EncryptedJWT;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
@@ -261,8 +262,8 @@ class BlackboxIT {
                 .andReturn());
 
         //
-        var issuerPublicKey = assertDoesNotThrow(() -> JWK.parseFromPEMEncodedObjects(sdjwtProperties.getPrivateKey()).toECKey().toECPublicKey());
-        var issuerSignatureVerifier = assertDoesNotThrow(() -> new ECDSAVerifier(issuerPublicKey));
+        var issuerPublicKey = assertDoesNotThrow(() -> JWK.parseFromPEMEncodedObjects(sdjwtProperties.getPrivateKey()).toMLDSAKey().toPublicJWK());
+        var issuerSignatureVerifier = assertDoesNotThrow(() -> new MLDSAVerifier(issuerPublicKey));
         var oauthConfigJwt = assertDoesNotThrow(() -> SignedJWT.parse(openidConfigResponse.getResponse()
                 .getContentAsString()), "Well Known data should be a parsable JWT");
         assertDoesNotThrow(() -> oauthConfigJwt.verify(issuerSignatureVerifier), "Signed Metadata must have a valid signature");
@@ -292,7 +293,7 @@ class BlackboxIT {
 
         // Fetch the bearer token
 
-        var dpopKey = assertDoesNotThrow(() -> new ECKeyGenerator(Curve.P_256)
+        var dpopKey = assertDoesNotThrow(() -> new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44)
                 .keyID("HolderDPoPKey")
                 .keyUse(KeyUse.SIGNATURE)
                 .generate());
@@ -331,14 +332,14 @@ class BlackboxIT {
         // To create the holder binding proof we need a key pair
         var holderBindingKeys = IntStream.range(0, issuerMetadata.getIssuanceBatchSize())
                 .boxed()
-                .map(i -> assertDoesNotThrow(() -> new ECKeyGenerator(Curve.P_256).keyID("HolderBindingKey#%s".formatted(
+                .map(i -> assertDoesNotThrow(() -> new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44).keyID("HolderBindingKey#%s".formatted(
                                 i))
                         .keyUse(KeyUse.SIGNATURE)
                         .generate()))
                 .toList();
-        var holderEncryptionKeys = assertDoesNotThrow(() -> new ECKeyGenerator(Curve.P_256).keyID("HolderEncryptionKey")
+        var holderEncryptionKeys = assertDoesNotThrow(() -> new XWingKeyGenerator().keyID("HolderEncryptionKey")
                 .keyUse(KeyUse.ENCRYPTION)
-                .algorithm(JWEAlgorithm.ECDH_ES)
+                .algorithm(JWEAlgorithm.XWING)
                 .generate());
 
         var holderBindingJwts = holderBindingKeys.stream()
@@ -364,15 +365,15 @@ class BlackboxIT {
         assertThat(requestEncryption.getEncValuesSupported()).isNotEmpty()
                 .contains(EncryptionMethod.A128GCM.getName());
         var requestJwks = assertDoesNotThrow(() -> JWKSet.parse(requestEncryption.getJwks()));
-        // Currently we only support a single EC key, so we can cheat here
+        // Currently we only support a single X-Wing key, so we can cheat here
         var issuerEncryptionKey = requestJwks.getKeys()
                 .getFirst();
-        var encryptedCredentialRequest = assertDoesNotThrow(() -> new EncryptedJWT(new JWEHeader.Builder(JWEAlgorithm.ECDH_ES,
+        var encryptedCredentialRequest = assertDoesNotThrow(() -> new EncryptedJWT(new JWEHeader.Builder(JWEAlgorithm.XWING,
                 EncryptionMethod.A128GCM).keyID(issuerEncryptionKey.getKeyID())
                 .compressionAlgorithm(CompressionAlgorithm.DEF)
                 .build(),
                 JWTClaimsSet.parse(objectMapper.writeValueAsString(credentialRequestDto))));
-        assertDoesNotThrow(() -> encryptedCredentialRequest.encrypt(new ECDHEncrypter(issuerEncryptionKey.toECKey())));
+        assertDoesNotThrow(() -> encryptedCredentialRequest.encrypt(new XWingEncrypter(issuerEncryptionKey.toXWingKey())));
 
         // Request the Credential with an encrypted credential request
         var credentialResponse = assertDoesNotThrow(() -> mvc.perform(post(issuerMetadata.getCredentialEndpoint()
@@ -397,7 +398,7 @@ class BlackboxIT {
                 .isEqualTo("application/jwt");
         var credentialResponseJwt = assertDoesNotThrow(() -> EncryptedJWT.parse(credentialResponse.getResponse()
                 .getContentAsString()));
-        assertDoesNotThrow(() -> credentialResponseJwt.decrypt(new ECDHDecrypter(holderEncryptionKeys.toECKey())));
+        assertDoesNotThrow(() -> credentialResponseJwt.decrypt(new XWingDecrypter(holderEncryptionKeys.toXWingKey())));
         var credentialResponseDto = assertDoesNotThrow(() -> objectMapper.readValue(credentialResponseJwt.getJWTClaimsSet()
                         .toString(),
                 CredentialEndpointResponseDto.class));
@@ -447,7 +448,7 @@ class BlackboxIT {
         }
     }
 
-    private String createDpop(String nonceEndpoint, String httpMethod, String httpUri, String accessToken, ECKey dpopKey) {
+    private String createDpop(String nonceEndpoint, String httpMethod, String httpUri, String accessToken, MLDSAKey dpopKey) {
         // Fetch a fresh nonce
         var nonceResponse = assertDoesNotThrow(() -> mvc.perform(post(nonceEndpoint))
                 .andExpect(status().isOk())
@@ -457,7 +458,7 @@ class BlackboxIT {
     }
 
     @NotNull
-    private SignedJWT createHolderBindingJwt(ECKey holderBindingKey,
+    private SignedJWT createHolderBindingJwt(MLDSAKey holderBindingKey,
                                              String baseIssuerUri,
                                              IssuerMetadata issuerMetadata) {
         // We need a fresh nonce for the holder binding proofs
@@ -475,7 +476,7 @@ class BlackboxIT {
         // https://openid.net/specs/openid-4-verifiable-credential-issuance-1_0.html#appendix-F.1
         var holderBindingJwt = new SignedJWT(
                 new JWSHeader.Builder(
-                        JWSAlgorithm.ES256)
+                        JWSAlgorithm.ML_DSA_44)
                         .type(new JOSEObjectType("openid4vci-proof+jwt"))
                         .jwk(holderBindingKey.toPublicJWK())
                         .build(),
@@ -485,7 +486,7 @@ class BlackboxIT {
                         .claim("nonce", nonce)
                         .build()
         );
-        assertDoesNotThrow(() -> holderBindingJwt.sign(new ECDSASigner(holderBindingKey)),
+        assertDoesNotThrow(() -> holderBindingJwt.sign(new MLDSASigner(holderBindingKey)),
                 "Singing the wallet holder binding proof with the wallet key");
         return holderBindingJwt;
     }

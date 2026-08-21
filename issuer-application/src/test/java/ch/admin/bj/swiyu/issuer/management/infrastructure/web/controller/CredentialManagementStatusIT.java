@@ -15,7 +15,7 @@ import ch.admin.bj.swiyu.issuer.dto.credentialofferstatus.UpdateCredentialStatus
 import ch.admin.bj.swiyu.issuer.dto.statuslist.StatusListDto;
 import ch.admin.bj.swiyu.issuer.oid4vci.intrastructure.web.controller.IssuanceTestUtils;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nimbusds.jose.jwk.ECKey;
+import com.nimbusds.jose.jwk.MLDSAKey;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -362,7 +362,7 @@ class CredentialManagementStatusIT {
                 createCredentialOfferResult.getContentAsString(),
                 CredentialWithDeeplinkResponseDto.class);
 
-        List<ECKey> holderPrivateKeys = IssuanceTestUtils
+        List<MLDSAKey> holderPrivateKeys = IssuanceTestUtils
                 .createHolderPrivateKeys(issuerMetadata.getIssuanceBatchSize());
 
         var token = IssuanceTestUtils.getAccessTokenFromDeeplink(mvc,

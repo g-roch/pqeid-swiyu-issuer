@@ -16,10 +16,10 @@ import ch.admin.bj.swiyu.issuer.service.test.TestServiceUtils;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import com.nimbusds.jose.jwk.Curve;
-import com.nimbusds.jose.jwk.ECKey;
+import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.jwk.KeyUse;
-import com.nimbusds.jose.jwk.gen.ECKeyGenerator;
+import com.nimbusds.jose.jwk.MLDSAKey;
+import com.nimbusds.jose.jwk.gen.MLDSAKeyGenerator;
 import com.nimbusds.jwt.SignedJWT;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeEach;
@@ -68,7 +68,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class IssuanceControllerIT {
     private static UUID offerId;
     private static StatusList testStatusList;
-    private static ECKey jwk;
+    private static MLDSAKey jwk;
     private final UUID validPreAuthCode = UUID.randomUUID();
     private final UUID allValuesPreAuthCode = UUID.randomUUID();
     private final Instant validFrom = Instant.now();
@@ -139,7 +139,7 @@ class IssuanceControllerIT {
         saveStatusListLinkedOffer(allValuesPreAuthCodeOffer, testStatusList, 1);
         var unboundOffer = createUnboundCredentialOffer();
         saveStatusListLinkedOffer(unboundOffer, testStatusList, 2);
-        jwk = new ECKeyGenerator(Curve.P_256)
+        jwk = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44)
                 .keyUse(KeyUse.SIGNATURE)
                 .keyID("Test-Key")
                 .issueTime(new Date())
@@ -185,11 +185,11 @@ class IssuanceControllerIT {
         var headers = test.getHeader();
 
         /*
-         * alg: Must be ES256
+         * alg: Must be ML-DSA-44
          * typ: Must be openidvci-issuer-metadata+jwt
          * kid: Must be the time when the JWT was issued
          */
-        assertEquals("ES256", headers.getAlgorithm().getName());
+        assertEquals("ML-DSA-44", headers.getAlgorithm().getName());
         assertEquals("openidvci-issuer-metadata+jwt", headers.getType().getType());
         assertEquals(sdjwtProperties.getVerificationMethod(), headers.getKeyID());
         assertEquals(SwissProfileVersions.ISSUANCE_PROFILE_VERSION,

@@ -21,13 +21,14 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.nimbusds.jose.*;
-import com.nimbusds.jose.crypto.ECDHDecrypter;
-import com.nimbusds.jose.crypto.ECDHEncrypter;
-import com.nimbusds.jose.jwk.Curve;
-import com.nimbusds.jose.jwk.ECKey;
+import com.nimbusds.jose.crypto.XWingDecrypter;
+import com.nimbusds.jose.crypto.XWingEncrypter;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.KeyUse;
-import com.nimbusds.jose.jwk.gen.ECKeyGenerator;
+import com.nimbusds.jose.jwk.MLDSAKey;
+import com.nimbusds.jose.jwk.XWingKey;
+import com.nimbusds.jose.jwk.gen.MLDSAKeyGenerator;
+import com.nimbusds.jose.jwk.gen.XWingKeyGenerator;
 import com.nimbusds.jwt.EncryptedJWT;
 import com.nimbusds.jwt.JWTClaimsSet;
 import org.jspecify.annotations.NonNull;
@@ -81,7 +82,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class DeferredIssuanceIT {
 
     private final UUID validPreAuthCode = UUID.randomUUID();
-    private List<ECKey> holderKeys;
+    private List<MLDSAKey> holderKeys;
     @Autowired
     private MockMvc mock;
     @Autowired
@@ -114,15 +115,15 @@ class DeferredIssuanceIT {
     /**
      * Creates a response encryption request object with a deprecated alg entry, which should be provided as part of the encryption jwk
      */
-    private static String createResponseEncryptionJson(ECKey ecJWK) {
+    private static String createResponseEncryptionJson(XWingKey xwKey) {
         return String.format("""
                         {
                             "alg": "%s",
                             "enc": "%s",
                             "jwk": %s
                         }
-                        """, JWEAlgorithm.ECDH_ES.getName(), EncryptionMethod.A128GCM.getName(),
-                ecJWK.toPublicJWK()
+                        """, JWEAlgorithm.XWING.getName(), EncryptionMethod.A128GCM.getName(),
+                xwKey.toPublicJWK()
                         .toJSONString());
     }
 
@@ -140,7 +141,7 @@ class DeferredIssuanceIT {
 
         offerManagementId = saveStatusListLinkedOffer(offer, statusList, 0).getId();
         holderKeys = IntStream.range(0, issuerMetadata.getIssuanceBatchSize()).boxed()
-                .map(i -> assertDoesNotThrow(() -> new ECKeyGenerator(Curve.P_256)
+                .map(i -> assertDoesNotThrow(() -> new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44)
                         .keyUse(KeyUse.SIGNATURE)
                         .keyID("Test-Key-" + i)
                         .issueTime(new Date())
@@ -307,7 +308,7 @@ class DeferredIssuanceIT {
         doReturn(null).when(issuerMetadata).getBatchCredentialIssuance();
         doReturn(false).when(issuerMetadata).isBatchIssuanceAllowed();
 
-        holderKeys = List.of(new ECKeyGenerator(Curve.P_256)
+        holderKeys = List.of(new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44)
                 .keyUse(KeyUse.SIGNATURE)
                 .keyID("Test-Key")
                 .issueTime(new Date())
@@ -410,9 +411,9 @@ class DeferredIssuanceIT {
         var token = tokenResponse.get("access_token");
         var nonce = TestInfrastructureUtils.requestNonceDPopHeader(mock);
 
-        ECKey ecJWK = new ECKeyGenerator(Curve.P_256)
+        XWingKey ecJWK = new XWingKeyGenerator()
                 .keyID("transportEncKeyEC")
-                .algorithm(JWEAlgorithm.ECDH_ES)
+                .algorithm(JWEAlgorithm.XWING)
                 .generate();
 
         var responseEncryptionJson = createResponseEncryptionJson(ecJWK);
@@ -423,8 +424,8 @@ class DeferredIssuanceIT {
         var requestEncryptionSpec = encryptionService.issuerMetadataWithEncryptionOptions()
                 .getRequestEncryption();
         var issuerEncryptionKey = JWKSet.parse(requestEncryptionSpec.getJwks()).getKeys().getFirst();
-        var issuerEncrypter = new ECDHEncrypter(issuerEncryptionKey.toECKey());
-        var jweHeader = new JWEHeader.Builder(JWEAlgorithm.ECDH_ES,
+        var issuerEncrypter = new XWingEncrypter(issuerEncryptionKey.toXWingKey());
+        var jweHeader = new JWEHeader.Builder(JWEAlgorithm.XWING,
                 EncryptionMethod.A128GCM).keyID(issuerEncryptionKey.getKeyID())
                 .compressionAlgorithm(CompressionAlgorithm.DEF)
                 .build();
@@ -485,13 +486,13 @@ class DeferredIssuanceIT {
      * @param token                     The OAuth token used for authorization
      * @param transactionId             The transaction ID associated with the
      *                                  deferred credential request
-     * @param issuerEncrypter           The ECDHEncrypter used for encrypting the
+     * @param issuerEncrypter           The XWingEncrypter used for encrypting the
      *                                  request
      * @param jweHeader                 The JWE header used for the encrypted
      *                                  request
      * @param expectedStatus            The expected result status for the deferred
      *                                  credential request
-     * @param ecJWK                     The ECKey used for response encryption
+     * @param ecJWK                     The XWingKey used for response encryption
      * @param rotateHolderEncryptionKey A flag indicating whether to rotate the
      *                                  holder's encryption key
      * @return A JsonObject containing the encrypted payload of the credentials
@@ -499,14 +500,14 @@ class DeferredIssuanceIT {
      * @throws Exception if any I/O or parsing error occurs
      */
     private @NonNull JsonObject deferredCredentialCall(Object token, String transactionId,
-                                                       ECDHEncrypter issuerEncrypter, JWEHeader jweHeader, ResultMatcher expectedStatus, ECKey ecJWK,
+                                                       XWingEncrypter issuerEncrypter, JWEHeader jweHeader, ResultMatcher expectedStatus, XWingKey ecJWK,
                                                        boolean rotateHolderEncryptionKey) throws Exception {
         var deferredCredentialRequestClaimBuilder = new JWTClaimsSet.Builder()
                 .claim("transaction_id", transactionId);
         if (rotateHolderEncryptionKey) {
-            ecJWK = new ECKeyGenerator(Curve.P_256)
+            ecJWK = new XWingKeyGenerator()
                     .keyID("transportEncKeyECNew")
-                    .algorithm(JWEAlgorithm.ECDH_ES)
+                    .algorithm(JWEAlgorithm.XWING)
                     .generate();
             deferredCredentialRequestClaimBuilder.claim("credential_response_encryption",
                     JWTClaimsSet.parse(createResponseEncryptionJson(ecJWK)).getClaims());
@@ -778,11 +779,11 @@ class DeferredIssuanceIT {
         return mock.perform(requestBuilder);
     }
 
-    private JsonObject getEncryptedPayload(MvcResult deferredCredentialResponse, ECKey ecJWK)
+    private JsonObject getEncryptedPayload(MvcResult deferredCredentialResponse, XWingKey ecJWK)
             throws ParseException, UnsupportedEncodingException, JOSEException {
         var jwe = JWEObject.parse(deferredCredentialResponse.getResponse()
                 .getContentAsString());
-        jwe.decrypt(new ECDHDecrypter(ecJWK.toECPrivateKey()));
+        jwe.decrypt(new XWingDecrypter(ecJWK));
         var jweContent = jwe.getPayload()
                 .toString();
         return JsonParser.parseString(jweContent)

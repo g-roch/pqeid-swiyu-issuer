@@ -5,11 +5,11 @@ import ch.admin.bj.swiyu.issuer.domain.openid.credentialrequest.holderbinding.Ke
 import ch.admin.bj.swiyu.issuer.service.JwsSignatureFacade;
 import ch.admin.bj.swiyu.jwssignatureservice.factory.strategy.KeyStrategyException;
 import com.nimbusds.jose.JOSEException;
+import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSSigner;
-import com.nimbusds.jose.crypto.ECDSASigner;
-import com.nimbusds.jose.jwk.Curve;
+import com.nimbusds.jose.crypto.MLDSASigner;
 import com.nimbusds.jose.jwk.JWK;
-import com.nimbusds.jose.jwk.gen.ECKeyGenerator;
+import com.nimbusds.jose.jwk.gen.MLDSAKeyGenerator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -46,12 +46,15 @@ class SigningKeyVerificationHealthCheckerTest {
         properties = new SdjwtProperties();
         properties.setVerificationMethod("did:example:123#key-1");
 
-        // Provide a mock JWK for DID resolution (public EC key)
-        var ecKey = new ECKeyGenerator(Curve.P_256).keyID("test-key").generate();
-        when(keyResolver.resolveKey("did:example:123#key-1")).thenReturn(JWK.parse(ecKey.toPublicJWK().toJSONString()));
+        // Provide a mock JWK for DID resolution (public ML-DSA key). This mocks KeyResolver
+        // directly (a Java JWK in, JWK out interface) rather than going through a real
+        // did_sidekicks Rust Jwk struct, so it does not hit the known EC-only DID-resolution
+        // blocker (see AbstractSigningKeyVerificationHealthChecker.verifySignature()).
+        var mldsaKey = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44).keyID("test-key").generate();
+        when(keyResolver.resolveKey("did:example:123#key-1")).thenReturn(JWK.parse(mldsaKey.toPublicJWK().toJSONString()));
 
-        // Provide a signer that can sign ES256
-        JWSSigner signer = new ECDSASigner(ecKey.toECPrivateKey());
+        // Provide a signer that can sign ML-DSA-44
+        JWSSigner signer = new MLDSASigner(mldsaKey);
         when(jwsSignatureFacade.createSigner(any(), any(), any())).thenReturn(signer);
     }
 

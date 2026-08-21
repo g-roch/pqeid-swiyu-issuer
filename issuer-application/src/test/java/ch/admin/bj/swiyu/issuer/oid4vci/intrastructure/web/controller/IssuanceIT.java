@@ -15,13 +15,13 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.nimbusds.jose.*;
-import com.nimbusds.jose.crypto.ECDHDecrypter;
-import com.nimbusds.jose.crypto.ECDHEncrypter;
-import com.nimbusds.jose.jwk.Curve;
-import com.nimbusds.jose.jwk.ECKey;
+import com.nimbusds.jose.crypto.XWingDecrypter;
+import com.nimbusds.jose.crypto.XWingEncrypter;
+import com.nimbusds.jose.jwk.MLDSAKey;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.KeyUse;
-import com.nimbusds.jose.jwk.gen.ECKeyGenerator;
+import com.nimbusds.jose.jwk.XWingKey;
+import com.nimbusds.jose.jwk.gen.XWingKeyGenerator;
 import com.nimbusds.jwt.SignedJWT;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -62,7 +62,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class IssuanceIT {
 
     private StatusList testStatusList;
-    private List<ECKey> holderKeys;
+    private List<MLDSAKey> holderKeys;
     @Autowired
     private MockMvc mock;
     @Autowired
@@ -267,12 +267,12 @@ class IssuanceIT {
 
         // Response Encryption
         assertThat(metadata.getResponseEncryption()).isNotNull();
-        assertTrue(metadata.getResponseEncryption().getAlgValuesSupported().contains(JWEAlgorithm.ECDH_ES.getName()));
+        assertTrue(metadata.getResponseEncryption().getAlgValuesSupported().contains(JWEAlgorithm.XWING.getName()));
         assertTrue(metadata.getResponseEncryption().getEncValuesSupported().contains(EncryptionMethod.A128GCM.getName()));
-        ECKey encryptionKey = new ECKeyGenerator(Curve.P_256)
+        XWingKey encryptionKey = new XWingKeyGenerator()
                 .keyID("transportEncKeyEC")
                 .keyUse(KeyUse.ENCRYPTION)
-                .algorithm(JWEAlgorithm.ECDH_ES)
+                .algorithm(JWEAlgorithm.XWING)
                 .generate();
 
         var responseEncryptionJson = String.format("""
@@ -281,7 +281,7 @@ class IssuanceIT {
                             "enc": "%s",
                             "jwk": %s
                         }
-                        """, JWEAlgorithm.ECDH_ES.getName(), EncryptionMethod.A256GCM.getName(),
+                        """, JWEAlgorithm.XWING.getName(), EncryptionMethod.A256GCM.getName(),
                 encryptionKey.toPublicJWK().toJSONString());
         var credentialRequestString = getCredentialRequestString(mock, holderKeys, applicationProperties, responseEncryptionJson, "university_example_sd_jwt");
 
@@ -291,13 +291,13 @@ class IssuanceIT {
         assertThat(requestEncryption.getJwks()).isNotNull();
         assertTrue(requestEncryption.getZipValuesSupported().contains(CompressionAlgorithm.DEF.getName()));
         var jwks = assertDoesNotThrow(() -> JWKSet.parse(requestEncryption.getJwks()));
-        var requestKey = jwks.getKeys().getFirst().toECKey();
-        var requestEncryptor = assertDoesNotThrow(() -> new ECDHEncrypter(requestKey));
+        var requestKey = jwks.getKeys().getFirst().toXWingKey();
+        var requestEncryptor = assertDoesNotThrow(() -> new XWingEncrypter(requestKey));
         var requestJweHeader = new JWEHeader.Builder(
-                JWEAlgorithm.ECDH_ES,
+                JWEAlgorithm.XWING,
                 EncryptionMethod.parse(requestEncryption.getEncValuesSupported().getFirst()))
                 .keyID(requestKey.getKeyID())
-                .alg(JWEAlgorithm.ECDH_ES)
+                .alg(JWEAlgorithm.XWING)
                 .compressionAlgorithm(CompressionAlgorithm.DEF).build();
         var jweObject = new JWEObject(requestJweHeader, new Payload(credentialRequestString));
         assertDoesNotThrow(() -> jweObject.encrypt(requestEncryptor));
@@ -314,7 +314,7 @@ class IssuanceIT {
                 .andReturn();
 
         var jwe = JWEObject.parse(response.getResponse().getContentAsString());
-        jwe.decrypt(new ECDHDecrypter(encryptionKey.toECPrivateKey()));
+        jwe.decrypt(new XWingDecrypter(encryptionKey));
         var jweContent = jwe.getPayload().toString();
         JsonObject credentialResponse = JsonParser.parseString(jweContent).getAsJsonObject();
         JsonArray credentials = credentialResponse.get("credentials").getAsJsonArray();
@@ -340,10 +340,10 @@ class IssuanceIT {
         var token = tokenResponse.get("access_token");
 
         // Response Encryption
-        ECKey encryptionKey = new ECKeyGenerator(Curve.P_256)
+        XWingKey encryptionKey = new XWingKeyGenerator()
                 .keyID("transportEncKeyEC")
                 .keyUse(KeyUse.ENCRYPTION)
-                .algorithm(JWEAlgorithm.ECDH_ES)
+                .algorithm(JWEAlgorithm.XWING)
                 .generate();
 
         var responseEncryptionJson = String.format("""
@@ -352,7 +352,7 @@ class IssuanceIT {
                             "enc": "%s",
                             "jwk": %s
                         }
-                        """, JWEAlgorithm.ECDH_ES.getName(), EncryptionMethod.A256GCM.getName(),
+                        """, JWEAlgorithm.XWING.getName(), EncryptionMethod.A256GCM.getName(),
                 encryptionKey.toPublicJWK().toJSONString());
         var credentialRequestString = getCredentialRequestString(mock, holderKeys, applicationProperties, responseEncryptionJson, "university_example_sd_jwt");
         mock.perform(post("/oid4vci/api/credential")
@@ -370,7 +370,7 @@ class IssuanceIT {
     @ValueSource(ints = {1, 3, 10})
     void testSdJwtOffer_withMultipleProof_thenSuccess(int numberOfProofs) throws Exception {
 
-        List<ECKey> holderPrivateKeys = createHolderPrivateKeys(numberOfProofs);
+        List<MLDSAKey> holderPrivateKeys = createHolderPrivateKeys(numberOfProofs);
 
         var offerRequest = CreateCredentialOfferRequestDto.builder()
                 .metadataCredentialSupportedId(List.of("university_example_sd_jwt"))
@@ -434,7 +434,7 @@ class IssuanceIT {
     @ValueSource(ints = {0, 11})
     void testSdJwtOffer_invalidBatchSizes_thenBadRequest(int numberOfProofs) throws Exception {
 
-        List<ECKey> holderPrivateKeys = createHolderPrivateKeys(numberOfProofs);
+        List<MLDSAKey> holderPrivateKeys = createHolderPrivateKeys(numberOfProofs);
 
         var offerRequest = CreateCredentialOfferRequestDto.builder()
                 .metadataCredentialSupportedId(List.of("university_example_sd_jwt"))
@@ -460,7 +460,7 @@ class IssuanceIT {
 
         var numberOfProofs = 2;
 
-        List<ECKey> holderPrivateKeys = createHolderPrivateKeys(numberOfProofs);
+        List<MLDSAKey> holderPrivateKeys = createHolderPrivateKeys(numberOfProofs);
 
         var offerRequest = CreateCredentialOfferRequestDto.builder()
                 .metadataCredentialSupportedId(List.of("university_example_sd_jwt"))
@@ -487,7 +487,7 @@ class IssuanceIT {
 
         var numberOfProofs = 1;
 
-        List<ECKey> holderPrivateKeys = createHolderPrivateKeys(numberOfProofs);
+        List<MLDSAKey> holderPrivateKeys = createHolderPrivateKeys(numberOfProofs);
 
         var offerRequest = CreateCredentialOfferRequestDto.builder()
                 .metadataCredentialSupportedId(List.of("university_example_sd_jwt"))
@@ -517,7 +517,7 @@ class IssuanceIT {
         doReturn(new BatchCredentialIssuance(10)).when(issuerMetadata).getBatchCredentialIssuance();
         doReturn(true).when(issuerMetadata).isBatchIssuanceAllowed();
 
-        List<ECKey> holderPrivateKeys = createHolderPrivateKeys(numberOfProofs);
+        List<MLDSAKey> holderPrivateKeys = createHolderPrivateKeys(numberOfProofs);
 
         var offerRequest = CreateCredentialOfferRequestDto.builder()
                 .metadataCredentialSupportedId(List.of("university_example_sd_jwt"))

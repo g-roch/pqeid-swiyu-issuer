@@ -9,10 +9,9 @@ import ch.admin.bj.swiyu.jwtvalidator.JwtValidatorException;
 import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
-import com.nimbusds.jose.crypto.ECDSASigner;
-import com.nimbusds.jose.jwk.Curve;
-import com.nimbusds.jose.jwk.ECKey;
-import com.nimbusds.jose.jwk.gen.ECKeyGenerator;
+import com.nimbusds.jose.crypto.MLDSASigner;
+import com.nimbusds.jose.jwk.MLDSAKey;
+import com.nimbusds.jose.jwk.gen.MLDSAKeyGenerator;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,7 +39,7 @@ class TrustStatementInjectionServiceTest {
     /**
      * Shared EC key for signing test JWTs – generated once to avoid per-test crypto overhead.
      */
-    private static final ECKey TEST_KEY;
+    private static final MLDSAKey TEST_KEY;
     private static final String ISSUER_DID = "did:tdw:test:issuer";
     private static final String VCT_ELFA = "https://example.ch/vct/elfa";
     private static final String VCT_MDL = "https://example.ch/vct/mdl";
@@ -48,7 +47,7 @@ class TrustStatementInjectionServiceTest {
 
     static {
         try {
-            TEST_KEY = new ECKeyGenerator(Curve.P_256).generate();
+            TEST_KEY = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44).generate();
         } catch (Exception e) {
             throw new ExceptionInInitializerError(e);
         }
@@ -62,7 +61,7 @@ class TrustStatementInjectionServiceTest {
      * Builds a signed piaTS JWT with the given VCT inside the {@code can_issue} claim.
      */
     private static String buildPiaTsJwt(String vct) throws Exception {
-        var header = new JWSHeader.Builder(JWSAlgorithm.ES256)
+        var header = new JWSHeader.Builder(JWSAlgorithm.ML_DSA_44)
                 .type(new JOSEObjectType("jwt"))
                 .build();
         var claims = new JWTClaimsSet.Builder()
@@ -72,7 +71,7 @@ class TrustStatementInjectionServiceTest {
                 .expirationTime(Date.from(Instant.now().plusSeconds(3600)))
                 .build();
         var jwt = new SignedJWT(header, claims);
-        jwt.sign(new ECDSASigner(TEST_KEY));
+        jwt.sign(new MLDSASigner(TEST_KEY));
         return jwt.serialize();
     }
 

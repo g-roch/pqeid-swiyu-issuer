@@ -8,10 +8,10 @@ import ch.admin.bj.swiyu.issuer.domain.openid.credentialrequest.holderbinding.Is
 import ch.admin.bj.swiyu.issuer.domain.openid.credentialrequest.holderbinding.SelfContainedNonce;
 import ch.admin.bj.swiyu.issuer.service.dpop.DemonstratingProofOfPossessionService;
 import ch.admin.bj.swiyu.issuer.util.DemonstratingProofOfPossessionTestUtil;
-import com.nimbusds.jose.jwk.Curve;
-import com.nimbusds.jose.jwk.ECKey;
+import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.jwk.KeyUse;
-import com.nimbusds.jose.jwk.gen.ECKeyGenerator;
+import com.nimbusds.jose.jwk.MLDSAKey;
+import com.nimbusds.jose.jwk.gen.MLDSAKeyGenerator;
 import jakarta.transaction.Transactional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -54,7 +54,7 @@ class DemonstratingProofOfPossessionIT {
     private CredentialOfferRepository credentialOfferRepository;
     private CredentialOffer testCredentialOffer;
     private CredentialManagement credentialManagement;
-    private ECKey dpopKey;
+    private MLDSAKey dpopKey;
     private UUID accessToken;
     @Autowired
     private CredentialManagementRepository credentialManagementRepository;
@@ -106,7 +106,7 @@ class DemonstratingProofOfPossessionIT {
         );
         credentialManagementRepository.save(mgmt);
 
-        dpopKey = assertDoesNotThrow(() -> new ECKeyGenerator(Curve.P_256).keyID("test-key-1").keyUse(KeyUse.SIGNATURE).generate());
+        dpopKey = assertDoesNotThrow(() -> new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44).keyID("test-key-1").keyUse(KeyUse.SIGNATURE).generate());
     }
 
     @Test

@@ -5,8 +5,8 @@ import ch.admin.bj.swiyu.issuer.domain.credentialoffer.*;
 import ch.admin.bj.swiyu.issuer.domain.openid.credentialrequest.CredentialRequestClass;
 import ch.admin.bj.swiyu.issuer.domain.openid.credentialrequest.holderbinding.AttackPotentialResistance;
 import com.nimbusds.jose.*;
-import com.nimbusds.jose.crypto.ECDSASigner;
-import com.nimbusds.jose.jwk.ECKey;
+import com.nimbusds.jose.crypto.MLDSASigner;
+import com.nimbusds.jose.jwk.MLDSAKey;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import org.jetbrains.annotations.NotNull;
@@ -20,12 +20,12 @@ import java.util.UUID;
 
 public class TestServiceUtils {
 
-    public static String createHolderProof(ECKey holderPrivateKey, String issuerUri, String nonce, String proofTypeString) throws JOSEException {
+    public static String createHolderProof(MLDSAKey holderPrivateKey, String issuerUri, String nonce, String proofTypeString) throws JOSEException {
         return createHolderProof(holderPrivateKey, issuerUri, nonce, proofTypeString, Date.from(Instant.now()));
     }
 
     public static String createAttestedHolderProof(
-            ECKey holderPrivateKey,
+            MLDSAKey holderPrivateKey,
             String issuerUri,
             String nonce,
             String proofTypeString,
@@ -35,23 +35,23 @@ public class TestServiceUtils {
     }
 
     public static String createAttestedHolderProof(
-            ECKey holderPrivateKey,
+            MLDSAKey holderPrivateKey,
             String issuerUri,
             String nonce,
             String proofTypeString,
             AttackPotentialResistance attestationLevel,
             String attestationIssuerDid,
-            ECKey attestationKey) throws JOSEException {
+            MLDSAKey attestationKey) throws JOSEException {
         return createHolderProofJWT(holderPrivateKey, issuerUri, nonce, proofTypeString, Date.from(Instant.now()), attestationLevel, attestationIssuerDid, attestationKey);
     }
 
-    public static String createHolderProof(ECKey holderPrivateKey, String issuerUri, String nonce, String proofTypeString, Date issueTime) throws JOSEException {
+    public static String createHolderProof(MLDSAKey holderPrivateKey, String issuerUri, String nonce, String proofTypeString, Date issueTime) throws JOSEException {
         return createHolderProofJWT(holderPrivateKey, issuerUri, nonce, proofTypeString, issueTime, null, null, holderPrivateKey);
     }
 
-    public static String createKeyAttestationJwt(ECKey attestationKey, ECKey holderPrivateKey, AttackPotentialResistance attestationLevel, String attestationIssuerDid) throws JOSEException {
+    public static String createKeyAttestationJwt(MLDSAKey attestationKey, MLDSAKey holderPrivateKey, AttackPotentialResistance attestationLevel, String attestationIssuerDid) throws JOSEException {
 
-        JWSSigner attestationSigner = new ECDSASigner(attestationKey);
+        JWSSigner attestationSigner = new MLDSASigner(attestationKey);
         var attestation = createKeyAttestation(attestationLevel, holderPrivateKey.toPublicJWK(), attestationIssuerDid == null ? "did:test:test-attestation-builder" : attestationIssuerDid);
         attestation.sign(attestationSigner);
         return attestation.serialize();
@@ -59,17 +59,17 @@ public class TestServiceUtils {
 
     @NotNull
     private static String createHolderProofJWT(
-            ECKey holderPrivateKey,
+            MLDSAKey holderPrivateKey,
             String issuerUri,
             String nonce,
             String proofTypeString,
             Date issueTime,
             @Nullable AttackPotentialResistance attestationLevel,
             @Nullable String attestationIssuerDid,
-            ECKey attestationKey) throws JOSEException {
-        JWSSigner signer = new ECDSASigner(holderPrivateKey);
+            MLDSAKey attestationKey) throws JOSEException {
+        JWSSigner signer = new MLDSASigner(holderPrivateKey);
 
-        var headerBuilder = new JWSHeader.Builder(JWSAlgorithm.ES256)
+        var headerBuilder = new JWSHeader.Builder(JWSAlgorithm.ML_DSA_44)
                 .type(new JOSEObjectType(proofTypeString));
         headerBuilder.jwk(holderPrivateKey.toPublicJWK());
         // Add attestation if required
@@ -89,8 +89,8 @@ public class TestServiceUtils {
         return jwt.serialize();
     }
 
-    private static SignedJWT createKeyAttestation(AttackPotentialResistance attestationLevel, ECKey publicJWK, String attestationIssuerDid) {
-        JWSHeader header = new JWSHeader.Builder(JWSAlgorithm.ES256)
+    private static SignedJWT createKeyAttestation(AttackPotentialResistance attestationLevel, MLDSAKey publicJWK, String attestationIssuerDid) {
+        JWSHeader header = new JWSHeader.Builder(JWSAlgorithm.ML_DSA_44)
                 .type(new JOSEObjectType("key-attestation+jwt"))
                 .keyID(attestationIssuerDid + "#key-1")
                 .customParam(SwissProfileVersions.PROFILE_VERSION_PARAM, SwissProfileVersions.ISSUANCE_PROFILE_VERSION)

@@ -17,10 +17,10 @@ import ch.admin.bj.swiyu.issuer.service.statusregistry.StatusRegistryClient;
 import ch.admin.bj.swiyu.jwssignatureservice.factory.strategy.KeyStrategyException;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSSigner;
-import com.nimbusds.jose.crypto.ECDSASigner;
-import com.nimbusds.jose.jwk.Curve;
-import com.nimbusds.jose.jwk.ECKey;
-import com.nimbusds.jose.jwk.gen.ECKeyGenerator;
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.crypto.MLDSASigner;
+import com.nimbusds.jose.jwk.MLDSAKey;
+import com.nimbusds.jose.jwk.gen.MLDSAKeyGenerator;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -50,7 +50,7 @@ class StatusListOrchestratorTest {
     private StatusListRepository statusListRepository;
     private TransactionTemplate transaction;
     private JwsSignatureFacade jwsSignatureFacade;
-    private ECKey ecKey;
+    private MLDSAKey ecKey;
     private JWSSigner signer;
     private CredentialOfferStatusRepository credentialOfferStatusRepository;
 
@@ -77,8 +77,8 @@ class StatusListOrchestratorTest {
             return callback.doInTransaction(null);
         });
         jwsSignatureFacade = Mockito.mock(JwsSignatureFacade.class);
-        ecKey = new ECKeyGenerator(Curve.P_256).keyID("did:example:mock#key1").generate();
-        signer = new ECDSASigner(ecKey);
+        ecKey = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44).keyID("did:example:mock#key1").generate();
+        signer = new MLDSASigner(ecKey);
         when(jwsSignatureFacade.createSigner(Mockito.any(), Mockito.any(), Mockito.any()))
                 .thenReturn(signer);
         credentialOfferStatusRepository = Mockito.mock(CredentialOfferStatusRepository.class);

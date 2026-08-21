@@ -7,13 +7,12 @@ import ch.admin.bj.swiyu.issuer.domain.openid.EncryptionKeyRepository;
 import ch.admin.bj.swiyu.issuer.domain.openid.metadata.IssuerCredentialRequestEncryption;
 import ch.admin.bj.swiyu.issuer.domain.openid.metadata.IssuerMetadata;
 import ch.admin.bj.swiyu.jweutil.JweUtil;
-import com.nimbusds.jose.Algorithm;
 import com.nimbusds.jose.JOSEException;
-import com.nimbusds.jose.jwk.Curve;
-import com.nimbusds.jose.jwk.ECKey;
+import com.nimbusds.jose.JWEAlgorithm;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.JWKSet;
-import com.nimbusds.jose.jwk.gen.ECKeyGenerator;
+import com.nimbusds.jose.jwk.XWingKey;
+import com.nimbusds.jose.jwk.gen.XWingKeyGenerator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -89,8 +88,8 @@ class JweServiceTest {
     @Test
     void rejectsUnknownKeyId() throws JOSEException {
         jweService.issuerMetadataWithEncryptionOptions();
-        ECKey foreignKey = new ECKeyGenerator(Curve.P_256)
-                .algorithm(new Algorithm("ECDH-ES"))
+        XWingKey foreignKey = new XWingKeyGenerator()
+                .algorithm(JWEAlgorithm.XWING)
                 .keyID(UUID.randomUUID().toString())
                 .generate();
         String encrypted = createEncryptedMessage("Hello", foreignKey);

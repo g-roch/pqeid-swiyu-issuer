@@ -28,10 +28,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.JsonParser;
 import com.jayway.jsonpath.JsonPath;
 import com.nimbusds.jose.JOSEException;
-import com.nimbusds.jose.jwk.Curve;
-import com.nimbusds.jose.jwk.ECKey;
+import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.jwk.KeyUse;
-import com.nimbusds.jose.jwk.gen.ECKeyGenerator;
+import com.nimbusds.jose.jwk.MLDSAKey;
+import com.nimbusds.jose.jwk.gen.MLDSAKeyGenerator;
 import com.nimbusds.jwt.SignedJWT;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
@@ -78,7 +78,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ContextConfiguration(initializers = PostgreSQLContainerInitializer.class)
 class DeferredFlowIT {
 
-    private static ECKey jwk;
+    private static MLDSAKey jwk;
     private final String deferredCredentialEndpoint = "/oid4vci/api/deferred_credential";
     private final ObjectMapper objectMapper = new ObjectMapper();
     @MockitoBean
@@ -131,7 +131,7 @@ class DeferredFlowIT {
         cleanDatabase();
         statusList = saveStatusList(createStatusList());
 
-        jwk = new ECKeyGenerator(Curve.P_256)
+        jwk = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44)
                 .keyUse(KeyUse.SIGNATURE)
                 .keyID("Test-Key")
                 .issueTime(new Date())

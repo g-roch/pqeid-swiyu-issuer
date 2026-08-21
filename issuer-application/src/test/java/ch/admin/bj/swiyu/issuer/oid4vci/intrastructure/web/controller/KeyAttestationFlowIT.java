@@ -14,11 +14,11 @@ import ch.admin.bj.swiyu.issuer.service.webhook.AsyncCredentialEventHandler;
 import ch.admin.bj.swiyu.issuer.service.webhook.ErrorEvent;
 import ch.admin.bj.swiyu.issuer.service.webhook.OfferStateChangeEvent;
 import com.nimbusds.jose.JOSEException;
-import com.nimbusds.jose.jwk.Curve;
-import com.nimbusds.jose.jwk.ECKey;
+import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.KeyUse;
-import com.nimbusds.jose.jwk.gen.ECKeyGenerator;
+import com.nimbusds.jose.jwk.MLDSAKey;
+import com.nimbusds.jose.jwk.gen.MLDSAKeyGenerator;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -58,7 +58,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ActiveProfiles("test")
 @ContextConfiguration(initializers = PostgreSQLContainerInitializer.class)
 class KeyAttestationFlowIT {
-    private static ECKey jwk;
+    private static MLDSAKey jwk;
+    // PQEID: dedicated key for DPoP proof-of-possession specifically, separate from the
+    // attestation/holder-proof key (jwk) - the checkDpopKeyAttestation_* tests below need
+    // the DPoP registration key and the key attestation subject key to differ.
+    private static MLDSAKey dpopKey;
     private final UUID testOfferNoAttestationId = UUID.randomUUID();
     private final UUID testOfferAnyAttestationId = UUID.randomUUID();
     private final UUID testOfferHighAttestationId = UUID.randomUUID();
@@ -89,7 +93,8 @@ class KeyAttestationFlowIT {
         createCredentialOffer(createTestOffer(testOfferNoAttestationId, CredentialOfferStatusType.OFFERED, "university_example_sd_jwt", Instant.now(), Instant.now().plus(30, ChronoUnit.DAYS)));
         createCredentialOffer(createTestOffer(testOfferAnyAttestationId, CredentialOfferStatusType.OFFERED, "university_example_any_key_attestation_required_sd_jwt", Instant.now(), Instant.now().plus(30, ChronoUnit.DAYS)));
         createCredentialOffer(createTestOffer(testOfferHighAttestationId, CredentialOfferStatusType.OFFERED, "university_example_high_key_attestation_required_sd_jwt", Instant.now(), Instant.now().plus(30, ChronoUnit.DAYS)));
-        jwk = new ECKeyGenerator(Curve.P_256).keyUse(KeyUse.SIGNATURE).keyID("Test-Key").issueTime(new Date()).generate();
+        jwk = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44).keyUse(KeyUse.SIGNATURE).keyID("Test-Key").issueTime(new Date()).generate();
+        dpopKey = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44).keyUse(KeyUse.SIGNATURE).keyID("Test-DPoP-Key").issueTime(new Date()).generate();
     }
 
     @AfterEach
@@ -194,7 +199,7 @@ class KeyAttestationFlowIT {
     @Test
     void testInvalidAttestationSignature_thenFail() throws Exception {
         var fetchData = prepareAttested(mock, testOfferHighAttestationId, AttackPotentialResistance.ISO_18045_ENHANCED_BASIC);
-        mockDidResolve(new ECKeyGenerator(Curve.P_256).keyUse(KeyUse.SIGNATURE).keyID("Test-Key").issueTime(new Date()).generate().toPublicJWK());
+        mockDidResolve(new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44).keyUse(KeyUse.SIGNATURE).keyID("Test-Key").issueTime(new Date()).generate().toPublicJWK());
         var response = TestInfrastructureUtils.requestFailingCredential(mock, fetchData.token(), fetchData.credentialRequestString());
         Assertions.assertThat(response.get("error").getAsString()).hasToString(CredentialRequestErrorDto.UNKNOWN_CREDENTIAL_IDENTIFIER.getErrorCode());
     }
@@ -206,7 +211,7 @@ class KeyAttestationFlowIT {
 
         String proof = createKeyAttestationJwt(jwk, jwk, AttackPotentialResistance.ISO_18045_HIGH, null);
 
-        fetchOAuthTokenDpop(mock, testOfferHighAttestationId.toString(), jwk, applicationProperties.getTemplateReplacement().get("external-url"), proof);
+        fetchOAuthTokenDpop(mock, testOfferHighAttestationId.toString(), dpopKey, applicationProperties.getTemplateReplacement().get("external-url"), proof);
     }
 
     @Test
@@ -214,7 +219,7 @@ class KeyAttestationFlowIT {
         when(applicationProperties.isDpopEnforce()).thenReturn(true);
         mockDidResolve(jwk.toPublicJWK());
 
-        var unattestedKey = assertDoesNotThrow(() -> new ECKeyGenerator(Curve.P_256)
+        var unattestedKey = assertDoesNotThrow(() -> new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44)
                 .keyID("Different-Key")
                 .keyUse(KeyUse.SIGNATURE)
                 .generate());
@@ -230,13 +235,13 @@ class KeyAttestationFlowIT {
         when(applicationProperties.isDpopEnforce()).thenReturn(true);
         mockDidResolve(jwk.toPublicJWK());
 
-        var unattestedKey = assertDoesNotThrow(() -> new ECKeyGenerator(Curve.P_256)
+        var unattestedKey = assertDoesNotThrow(() -> new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44)
                 .keyID("Different-Key")
                 .keyUse(KeyUse.SIGNATURE)
                 .generate());
 
         String proof = createKeyAttestationJwt(unattestedKey, unattestedKey, AttackPotentialResistance.ISO_18045_HIGH, null);
-        var response = fetchOAuthTokenDpop(mock, testOfferHighAttestationId.toString(), jwk, applicationProperties.getTemplateReplacement().get("external-url"), proof);
+        var response = fetchOAuthTokenDpop(mock, testOfferHighAttestationId.toString(), dpopKey, applicationProperties.getTemplateReplacement().get("external-url"), proof);
 
         assertEquals(INVALID_PROOF.getErrorCode(), response.get("error"));
     }

@@ -18,10 +18,10 @@ import com.authlete.sd.SDJWT;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
-import com.nimbusds.jose.jwk.Curve;
-import com.nimbusds.jose.jwk.ECKey;
+import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.jwk.KeyUse;
-import com.nimbusds.jose.jwk.gen.ECKeyGenerator;
+import com.nimbusds.jose.jwk.MLDSAKey;
+import com.nimbusds.jose.jwk.gen.MLDSAKeyGenerator;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import org.junit.jupiter.api.BeforeAll;
@@ -61,7 +61,7 @@ import java.util.stream.IntStream;
 import static ch.admin.bj.swiyu.issuer.oid4vci.intrastructure.web.controller.IssuanceTestUtils.*;
 import static ch.admin.bj.swiyu.issuer.oid4vci.test.CredentialOfferTestData.getMinimalPayloadForDeferredUniversityCredential;
 import static ch.admin.bj.swiyu.issuer.oid4vci.test.CredentialOfferTestData.getMinimalPayloadForUniversityCredential;
-import static ch.admin.bj.swiyu.issuer.oid4vci.test.TestInfrastructureUtils.createEcKey;
+import static ch.admin.bj.swiyu.issuer.oid4vci.test.TestInfrastructureUtils.createHolderKey;
 import static ch.admin.bj.swiyu.issuer.oid4vci.test.TestInfrastructureUtils.fetchOAuthTokenDpop;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -102,7 +102,7 @@ class RenewalFlowIT {
     private String payload;
     private Map<String, Object> payloadMap;
     private OAuthTokenDto oauthTokenResponse;
-    private ECKey dpopKey;
+    private MLDSAKey dpopKey;
     private String managementId;
 
     @BeforeAll
@@ -158,7 +158,7 @@ class RenewalFlowIT {
     @Test
     void renewAccessToken_deferred_thenSuccess() throws Exception {
 
-        var jwk = createEcKey("test-key-1");
+        var jwk = createHolderKey("test-key-1");
 
         var deferredPayload = getMinimalPayloadForDeferredUniversityCredential(null);
 
@@ -379,7 +379,7 @@ class RenewalFlowIT {
         var preAuthCode = IssuanceTestUtils
                 .getPreAuthCodeFromDeeplink(managementJsonObject.get("offer_deeplink").getAsString());
 
-        dpopKey = assertDoesNotThrow(() -> new ECKeyGenerator(Curve.P_256)
+        dpopKey = assertDoesNotThrow(() -> new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44)
                 .keyID("HolderDPoPKey")
                 .keyUse(KeyUse.SIGNATURE)
                 .generate());
@@ -398,7 +398,7 @@ class RenewalFlowIT {
         return managementJsonObject;
     }
 
-    private OAuthTokenDto requestTokenWithDpop(String preAuthCode, ECKey dpopKey) throws Exception {
+    private OAuthTokenDto requestTokenWithDpop(String preAuthCode, MLDSAKey dpopKey) throws Exception {
         MvcResult tokenResult = mockMvc.perform(post("/oid4vci/api/token")
                         .header("DPoP", createDpop(
                                 mockMvc,
@@ -416,7 +416,7 @@ class RenewalFlowIT {
         return objectMapper.readValue(tokenResult.getResponse().getContentAsString(), OAuthTokenDto.class);
     }
 
-    private OAuthTokenDto refreshTokenWithDpop(String refreshToken, ECKey dpopKey) throws Exception {
+    private OAuthTokenDto refreshTokenWithDpop(String refreshToken, MLDSAKey dpopKey) throws Exception {
         MvcResult tokenResult = mockMvc.perform(post("/oid4vci/api/token")
                         .header("DPoP", createDpop(
                                 mockMvc,

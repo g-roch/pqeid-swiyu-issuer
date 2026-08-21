@@ -13,10 +13,10 @@ import com.authlete.sd.SDObjectDecoder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSSigner;
-import com.nimbusds.jose.crypto.ECDSASigner;
-import com.nimbusds.jose.jwk.Curve;
-import com.nimbusds.jose.jwk.ECKey;
-import com.nimbusds.jose.jwk.gen.ECKeyGenerator;
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.crypto.MLDSASigner;
+import com.nimbusds.jose.jwk.MLDSAKey;
+import com.nimbusds.jose.jwk.gen.MLDSAKeyGenerator;
 import com.nimbusds.jwt.SignedJWT;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -63,10 +63,10 @@ class SdJwtCredentialTest {
     }
 
     private JWSSigner createTestSigner() throws JOSEException {
-        ECKey ecJWK = new ECKeyGenerator(Curve.P_256)
+        MLDSAKey mldsaJWK = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44)
                 .keyID("test-key")
                 .generate();
-        return new ECDSASigner(ecJWK);
+        return new MLDSASigner(mldsaJWK);
     }
 
     @Test
@@ -120,10 +120,10 @@ class SdJwtCredentialTest {
         subject.credentialOffer(offer);
 
         // provide two holder keys so batch size becomes 2
-        ECKey ecJWK = new ECKeyGenerator(Curve.P_256).keyID("k1").generate();
-        HolderKeyBinding holderKeyBinding1 = new HolderKeyBinding(ecJWK.toPublicJWK().toJSONString());
-        ECKey ecJWK2 = new ECKeyGenerator(Curve.P_256).keyID("k2").generate();
-        HolderKeyBinding holderKeyBinding2 = new HolderKeyBinding(ecJWK2.toPublicJWK().toJSONString());
+        MLDSAKey holderJwk = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44).keyID("k1").generate();
+        HolderKeyBinding holderKeyBinding1 = new HolderKeyBinding(holderJwk.toPublicJWK().toJSONString());
+        MLDSAKey holderJwk2 = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44).keyID("k2").generate();
+        HolderKeyBinding holderKeyBinding2 = new HolderKeyBinding(holderJwk2.toPublicJWK().toJSONString());
 
         // Act & Assert
         assertThrows(IllegalStateException.class, () -> subject.getCredential(List.of(holderKeyBinding1, holderKeyBinding2)));
@@ -171,10 +171,10 @@ class SdJwtCredentialTest {
 
         // create two holder public keys
         // provide two holder keys so batch size becomes 2
-        ECKey ecJWK = new ECKeyGenerator(Curve.P_256).keyID("k1").generate();
-        HolderKeyBinding holderKeyBinding1 = new HolderKeyBinding(ecJWK.toPublicJWK().toJSONString());
-        ECKey ecJWK2 = new ECKeyGenerator(Curve.P_256).keyID("k2").generate();
-        HolderKeyBinding holderKeyBinding2 = new HolderKeyBinding(ecJWK2.toPublicJWK().toJSONString());
+        MLDSAKey holderJwk = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44).keyID("k1").generate();
+        HolderKeyBinding holderKeyBinding1 = new HolderKeyBinding(holderJwk.toPublicJWK().toJSONString());
+        MLDSAKey holderJwk2 = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44).keyID("k2").generate();
+        HolderKeyBinding holderKeyBinding2 = new HolderKeyBinding(holderJwk2.toPublicJWK().toJSONString());
 
         List<String> credentials = sdJwtCredential.getCredential(List.of(holderKeyBinding1, holderKeyBinding2));
 
@@ -254,7 +254,7 @@ class SdJwtCredentialTest {
      * The created VC should in decoded form look like
      * {
      * "profile_version": "swiss-profile-vc:1.0.0",
-     * "alg": "ES256",
+     * "alg": "ML-DSA-44",
      * "typ": "dc+sd-jwt"
      * }.{
      * "iss": "did:example:issuer",

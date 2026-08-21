@@ -6,7 +6,8 @@ import ch.admin.bj.swiyu.issuer.common.exception.Oid4vcException;
 import ch.admin.bj.swiyu.issuer.domain.openid.EncryptionKey;
 import ch.admin.bj.swiyu.issuer.domain.openid.EncryptionKeyRepository;
 import com.nimbusds.jose.*;
-import com.nimbusds.jose.crypto.ECDHEncrypter;
+import com.nimbusds.jose.crypto.XWingDecrypter;
+import com.nimbusds.jose.crypto.XWingEncrypter;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.JWKSet;
 import org.junit.jupiter.api.BeforeEach;
@@ -156,9 +157,9 @@ class EncryptionKeyServiceTest {
     }
 
     private String createEncryptedMessage(String message, JWK key, EncryptionMethod encryptionMethod) throws JOSEException {
-        ECDHEncrypter encrypter = new ECDHEncrypter(key.toECKey());
+        XWingEncrypter encrypter = new XWingEncrypter(key.toXWingKey());
         JWEObject jweObject = new JWEObject(
-                new JWEHeader.Builder(JWEAlgorithm.ECDH_ES, encryptionMethod)
+                new JWEHeader.Builder(JWEAlgorithm.XWING, encryptionMethod)
                         .compressionAlgorithm(CompressionAlgorithm.DEF)
                         .keyID(key.getKeyID())
                         .build(),
@@ -175,7 +176,7 @@ class EncryptionKeyServiceTest {
             if (key == null) {
                 throw new Oid4vcException(CredentialRequestError.CREDENTIAL_REQUEST_DENIED, "Unknown key");
             }
-            JWEDecrypter decrypter = new com.nimbusds.jose.crypto.ECDHDecrypter(key.toECKey());
+            JWEDecrypter decrypter = new XWingDecrypter(key.toXWingKey());
             jweObject.decrypt(decrypter);
             return jweObject.getPayload().toString();
         } catch (Exception e) {

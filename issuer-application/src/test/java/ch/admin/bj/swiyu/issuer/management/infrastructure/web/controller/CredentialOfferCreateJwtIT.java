@@ -6,8 +6,8 @@ import ch.admin.bj.swiyu.issuer.management.ApplicationIT;
 import com.jayway.jsonpath.JsonPath;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
-import com.nimbusds.jose.crypto.ECDSASigner;
-import com.nimbusds.jose.jwk.ECKey;
+import com.nimbusds.jose.crypto.MLDSASigner;
+import com.nimbusds.jose.jwk.MLDSAKey;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import org.junit.jupiter.api.Test;
@@ -68,11 +68,11 @@ class CredentialOfferCreateJwtIT {
     void createOfferWithJWTAndInnerJWT() throws Exception {
         // Offer data we want to use in the VC as JWT
         // Build the JWT
-        ECKey ecJWK = ECKey.parse(ApplicationIT.privateKey);
+        MLDSAKey mldsaJWK = MLDSAKey.parse(ApplicationIT.privateKey);
         var claims = JWTClaimsSet.parse(getCredentialOfferData());
 
-        SignedJWT jwt = new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.ES256).keyID("testkey").build(), claims);
-        jwt.sign(new ECDSASigner(ecJWK));
+        SignedJWT jwt = new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.ML_DSA_44).keyID("testkey").build(), claims);
+        jwt.sign(new MLDSASigner(mldsaJWK));
         String payload = jwt.serialize();
         // Adding in the offer data is done in the same way as without data integrity
         String jsonPayload = String.format("""
@@ -108,10 +108,10 @@ class CredentialOfferCreateJwtIT {
                 .build());
         // Offer data we want to use in the VC as JWT
         // Build the data integrity JWT (Inner JWT)
-        ECKey ecJWK = ECKey.parse(ApplicationIT.privateKey);
+        MLDSAKey mldsaJWK = MLDSAKey.parse(ApplicationIT.privateKey);
         var dataClaims = JWTClaimsSet.parse(getCredentialOfferData());
-        SignedJWT integrityJwt = new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.ES256).keyID("testkey").build(), dataClaims);
-        integrityJwt.sign(new ECDSASigner(ecJWK));
+        SignedJWT integrityJwt = new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.ML_DSA_44).keyID("testkey").build(), dataClaims);
+        integrityJwt.sign(new MLDSASigner(mldsaJWK));
         String dataIntegrityPayload = integrityJwt.serialize();
 
         var jwtAuthVClaims = JWTClaimsSet.parse("""
@@ -119,8 +119,8 @@ class CredentialOfferCreateJwtIT {
                     "data": "%s"
                 }
                 """.formatted(dataIntegrityPayload));
-        SignedJWT jwtAuthJwt = new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.ES256).keyID("testkey").build(), jwtAuthVClaims);
-        jwtAuthJwt.sign(new ECDSASigner(ecJWK));
+        SignedJWT jwtAuthJwt = new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.ML_DSA_44).keyID("testkey").build(), jwtAuthVClaims);
+        jwtAuthJwt.sign(new MLDSASigner(mldsaJWK));
         String jwtAuth = jwtAuthJwt.serialize();
         var response = mvc.perform(patch("%s/%s".formatted(BASE_URL, ID.toString()))
                         .contentType(MediaType.APPLICATION_JSON)
@@ -184,11 +184,11 @@ class CredentialOfferCreateJwtIT {
     }
 
     private ResultActions createOfferMvcResult(String jsonPayload) throws Exception {
-        ECKey ecJWK = ECKey.parse(ApplicationIT.privateKey);
+        MLDSAKey mldsaJWK = MLDSAKey.parse(ApplicationIT.privateKey);
         JWTClaimsSet claims = new JWTClaimsSet.Builder().claim("data", jsonPayload).build();
 
-        SignedJWT jwt = new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.ES256).keyID("testkey").build(), claims);
-        jwt.sign(new ECDSASigner(ecJWK));
+        SignedJWT jwt = new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.ML_DSA_44).keyID("testkey").build(), claims);
+        jwt.sign(new MLDSASigner(mldsaJWK));
         String payload = jwt.serialize();
         return mvc.perform(post(BASE_URL)
                 .contentType(MediaType.APPLICATION_JSON)

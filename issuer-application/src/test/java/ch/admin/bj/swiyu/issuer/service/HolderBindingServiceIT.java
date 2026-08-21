@@ -18,10 +18,10 @@ import ch.admin.bj.swiyu.issuer.service.credential.HolderBindingService;
 import ch.admin.bj.swiyu.issuer.service.did.DidKeyResolverFacade;
 import ch.admin.bj.swiyu.issuer.service.test.TestServiceUtils;
 import com.nimbusds.jose.JOSEException;
-import com.nimbusds.jose.jwk.Curve;
-import com.nimbusds.jose.jwk.ECKey;
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.jwk.MLDSAKey;
 import com.nimbusds.jose.jwk.KeyUse;
-import com.nimbusds.jose.jwk.gen.ECKeyGenerator;
+import com.nimbusds.jose.jwk.gen.MLDSAKeyGenerator;
 import jakarta.transaction.Transactional;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -63,7 +63,7 @@ class HolderBindingServiceIT {
     private DidKeyResolverFacade didKeyResolver;
 
     private IssuerSecret nonceSecret;
-    private ECKey attestationKey;
+    private MLDSAKey attestationKey;
 
     private static CredentialOffer createHolderBindingTestOffer() {
         var credentialManagement = CredentialManagement.builder()
@@ -87,7 +87,7 @@ class HolderBindingServiceIT {
 
     @BeforeEach
     void setUp() throws JOSEException {
-        attestationKey = new ECKeyGenerator(Curve.P_256).keyID("did:test:test-attestation-builder#key-1").keyUse(KeyUse.SIGNATURE).generate();
+        attestationKey = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44).keyID("did:test:test-attestation-builder#key-1").keyUse(KeyUse.SIGNATURE).generate();
         Mockito.when(didKeyResolver.resolveKey(Mockito.any())).thenReturn(attestationKey);
         nonceSecret = nonceSecretRepository.findAll().getFirst();
     }
@@ -98,7 +98,7 @@ class HolderBindingServiceIT {
         List<String> proofs = new LinkedList<>();
         assertThat(issuerMetadata.getIssuanceBatchSize()).as("Test Configuration must have batch issuance for this test").isGreaterThan(1);
         for (int i = 0; i < issuerMetadata.getIssuanceBatchSize(); i++) {
-            ECKey proofKey = new ECKeyGenerator(Curve.P_256).keyID("Test-Key-%s".formatted(i)).keyUse(KeyUse.SIGNATURE).generate();
+            MLDSAKey proofKey = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44).keyID("Test-Key-%s".formatted(i)).keyUse(KeyUse.SIGNATURE).generate();
             String nonce = new SelfContainedNonce(nonceSecret).getNonce();
             String proof = TestServiceUtils.createAttestedHolderProof(
                     proofKey,
@@ -127,7 +127,7 @@ class HolderBindingServiceIT {
         List<String> proofs = new LinkedList<>();
         String nonce = new SelfContainedNonce(nonceSecret).getNonce();
         for (int i = 0; i < issuerMetadata.getIssuanceBatchSize(); i++) {
-            ECKey proofKey = new ECKeyGenerator(Curve.P_256).keyID("Test-Key-%s".formatted(i)).keyUse(KeyUse.SIGNATURE).generate();
+            MLDSAKey proofKey = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44).keyID("Test-Key-%s".formatted(i)).keyUse(KeyUse.SIGNATURE).generate();
             String proof = TestServiceUtils.createAttestedHolderProof(
                     proofKey,
                     applicationProperties.getTemplateReplacement().get("external-url"),
@@ -171,7 +171,7 @@ class HolderBindingServiceIT {
                 nonce = UUID.randomUUID().toString();
             }
 
-            ECKey proofKey = new ECKeyGenerator(Curve.P_256).keyID("Test-Key-%s".formatted(i)).keyUse(KeyUse.SIGNATURE).generate();
+            MLDSAKey proofKey = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44).keyID("Test-Key-%s".formatted(i)).keyUse(KeyUse.SIGNATURE).generate();
             String proof = TestServiceUtils.createAttestedHolderProof(
                     proofKey,
                     applicationProperties.getTemplateReplacement().get("external-url"),
@@ -203,7 +203,7 @@ class HolderBindingServiceIT {
             } else {
                 nonce = "";
             }
-            ECKey proofKey = new ECKeyGenerator(Curve.P_256).keyID("Test-Key-%s".formatted(i)).keyUse(KeyUse.SIGNATURE).generate();
+            MLDSAKey proofKey = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44).keyID("Test-Key-%s".formatted(i)).keyUse(KeyUse.SIGNATURE).generate();
             String proof = TestServiceUtils.createAttestedHolderProof(
                     proofKey,
                     applicationProperties.getTemplateReplacement().get("external-url"),
@@ -229,7 +229,7 @@ class HolderBindingServiceIT {
         var credentialOffer = createHolderBindingTestOffer();
         List<String> proofs = new LinkedList<>();
         for (int i = 0; i < issuerMetadata.getIssuanceBatchSize(); i++) {
-            ECKey proofKey = new ECKeyGenerator(Curve.P_256).keyID("Test-Key-%s".formatted(i)).keyUse(KeyUse.SIGNATURE).generate();
+            MLDSAKey proofKey = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44).keyID("Test-Key-%s".formatted(i)).keyUse(KeyUse.SIGNATURE).generate();
             String proof = TestServiceUtils.createAttestedHolderProof(
                     proofKey,
                     applicationProperties.getTemplateReplacement().get("external-url"),
@@ -259,7 +259,7 @@ class HolderBindingServiceIT {
         String nonce = new SelfContainedNonce(nonceSecret).getNonce();
         List<String> proofs = new LinkedList<>();
         for (int i = 0; i < issuerMetadata.getIssuanceBatchSize(); i++) {
-            ECKey proofKey = new ECKeyGenerator(Curve.P_256).keyID("Test-Key-%s".formatted(i)).keyUse(KeyUse.SIGNATURE).generate();
+            MLDSAKey proofKey = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44).keyID("Test-Key-%s".formatted(i)).keyUse(KeyUse.SIGNATURE).generate();
             String proof = TestServiceUtils.createAttestedHolderProof(
                     proofKey,
                     applicationProperties.getTemplateReplacement().get("external-url"),

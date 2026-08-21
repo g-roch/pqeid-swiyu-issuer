@@ -19,9 +19,9 @@ import com.google.gson.JsonParser;
 import com.jayway.jsonpath.JsonPath;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSSigner;
-import com.nimbusds.jose.crypto.ECDSASigner;
-import com.nimbusds.jose.jwk.Curve;
-import com.nimbusds.jose.jwk.gen.ECKeyGenerator;
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.crypto.MLDSASigner;
+import com.nimbusds.jose.jwk.gen.MLDSAKeyGenerator;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeEach;
@@ -102,9 +102,9 @@ class StatusListIT {
         when(statusBusinessApi.getApiClient()).thenReturn(mockApiClient);
         when(mockApiClient.getBasePath()).thenReturn(statusRegistryUrl);
 
-        final JWSSigner es256Signer = new ECDSASigner(new ECKeyGenerator(Curve.P_256).keyID("test-key").generate());
+        final JWSSigner mldsaSigner = new MLDSASigner(new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44).keyID("test-key").generate());
         when(jwsSignatureFacade.createSigner(any(SignatureConfiguration.class), any(), any()))
-                .thenReturn(es256Signer);
+                .thenReturn(mldsaSigner);
     }
 
     @Test

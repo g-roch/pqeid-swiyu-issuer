@@ -10,10 +10,10 @@ import ch.admin.bj.swiyu.issuer.service.trustregistry.TrustStatementCacheService
 import ch.admin.bj.swiyu.issuer.service.trustregistry.TrustStatementValidator;
 import ch.admin.bj.swiyu.tsbuilder.IdTsBuilder;
 import ch.admin.bj.swiyu.tsbuilder.PiaTsBuilder;
-import com.nimbusds.jose.crypto.ECDSASigner;
-import com.nimbusds.jose.jwk.Curve;
-import com.nimbusds.jose.jwk.ECKey;
-import com.nimbusds.jose.jwk.gen.ECKeyGenerator;
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.crypto.MLDSASigner;
+import com.nimbusds.jose.jwk.MLDSAKey;
+import com.nimbusds.jose.jwk.gen.MLDSAKeyGenerator;
 import com.nimbusds.jwt.SignedJWT;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.BeforeEach;
@@ -152,17 +152,21 @@ class WellKnownTrustStatementIT {
 
     /**
      * Builds and signs a pair of Trust Statement JWTs (idTS + piaTS) using a fresh
-     * ephemeral EC key, then stubs the cache service to return them and stubs
+     * ephemeral ML-DSA-44 key, then stubs the cache service to return them and stubs
      * the validator to be a no-op for any JWT string.
      *
      * <p>Stubbing is done here so that mock and JWT construction happen atomically
      * without any timestamp skew between building the JWT and registering the mock.</p>
      *
+     * <p>{@code IdTsBuilder}/{@code PiaTsBuilder} (external {@code ch.admin.swiyu:swiyu-ts-builder}
+     * dependency) hardcode {@code JWSAlgorithm.ML_DSA_44} in the JWS header they build, so only
+     * an ML-DSA-capable signer can sign the result without throwing.</p>
+     *
      * @throws Exception if key generation or JWT building fails
      */
     private void stubTrustStatements() throws Exception {
-        ECKey ecKey = new ECKeyGenerator(Curve.P_256).keyID("test-key").generate();
-        ECDSASigner signer = new ECDSASigner(ecKey);
+        MLDSAKey mldsaKey = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44).keyID("test-key").generate();
+        MLDSASigner signer = new MLDSASigner(mldsaKey);
 
         Instant now = Instant.now();
         Instant expiry = now.plus(1, ChronoUnit.DAYS);

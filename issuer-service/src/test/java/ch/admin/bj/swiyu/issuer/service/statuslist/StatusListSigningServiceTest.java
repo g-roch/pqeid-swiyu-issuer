@@ -12,10 +12,10 @@ import ch.admin.bj.swiyu.jwssignatureservice.factory.strategy.KeyStrategyExcepti
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.JWSSigner;
-import com.nimbusds.jose.crypto.ECDSASigner;
-import com.nimbusds.jose.jwk.Curve;
-import com.nimbusds.jose.jwk.ECKey;
-import com.nimbusds.jose.jwk.gen.ECKeyGenerator;
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.crypto.MLDSASigner;
+import com.nimbusds.jose.jwk.MLDSAKey;
+import com.nimbusds.jose.jwk.gen.MLDSAKeyGenerator;
 import com.nimbusds.jwt.SignedJWT;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -59,7 +59,7 @@ class StatusListSigningServiceTest {
 
         TokenStatusListToken token = new TokenStatusListToken(2, 8);
 
-        // Use a real ES256 signer to exercise Nimbus signing flow
+        // Use a real ML-DSA-44 signer to exercise Nimbus signing flow
         JWSSigner signer = createDummySigner();
         when(jwsSignatureFacade.createSigner(statusListProperties, null, null)).thenReturn(signer);
 
@@ -103,7 +103,7 @@ class StatusListSigningServiceTest {
         TokenStatusListToken token = new TokenStatusListToken(1, 4);
 
         JWSSigner failingSigner = mock(JWSSigner.class);
-        when(failingSigner.sign(any(), any())).thenThrow(new JOSEException("simulated signing failure"));
+        when(failingSigner.sign(any(), any(byte[].class))).thenThrow(new JOSEException("simulated signing failure"));
         when(jwsSignatureFacade.createSigner(statusListProperties, null, null)).thenReturn(failingSigner);
 
         // Act / Assert
@@ -111,10 +111,10 @@ class StatusListSigningServiceTest {
     }
 
     private JWSSigner createDummySigner() throws JOSEException {
-        ECKey ecJWK = new ECKeyGenerator(Curve.P_256)
+        MLDSAKey mldsaJWK = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44)
                 .keyID("test-key")
                 .generate();
-        return new ECDSASigner(ecJWK);
+        return new MLDSASigner(mldsaJWK);
     }
 }
 
