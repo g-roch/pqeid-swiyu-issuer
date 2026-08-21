@@ -257,6 +257,8 @@ accessed [here](http://localhost:8080/swagger-ui/index.html#/).
 
 ### Generate Keys
 
+<!-- TODO-PQEID: confirms EC P-256 as the only supported signing key type across this
+     issuer (SD-JWT, status-list, metadata signing). CBOM ref E31. -->
 Currently only EC 256 keys are used.
 Generate private key with:
 `openssl ecparam -genkey -name prime256v1 -noout -out ec_private.pem`
@@ -280,6 +282,9 @@ The Generic Issuer service is configured using environment variables.
 
 #### Verifiable Credential Issuing
 
+<!-- TODO-PQEID: SDJWT_KEY / DID_SDJWT_VERIFICATION_METHOD configure the classical EC
+     private key + DID verification method used to sign SD-JWT VCs (see SdJwtCredential,
+     hardcoded ES256). CBOM ref E32. -->
 | Variable                                         | Description                                                                                                                                                                                                                                                                              |
 |:-------------------------------------------------|:-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | EXTERNAL_URL                                     | The URL of the Issuer Signer. This URL is used in the credential offer link sent to the Wallet                                                                                                                                                                                           |
@@ -384,6 +389,8 @@ Multitenancy is not supported.
 
 #### JWT Based Data Integrity
 
+<!-- TODO-PQEID: management-endpoint JWT auth (JWTFilter/JWTResolveRequestWrapper) and offer
+     data-integrity JWT (DataIntegrityService) both verify against an EC/RSA JWKS. CBOM ref E06/E33. -->
 If there is the need to further protect the API / Data Integrity it is possible to enable the feature with a flag and
 set the environment variables with the allowed public key as a JSON Web Key Set
 
@@ -433,6 +440,8 @@ The Data integrity check can be enforced to be always used by setting the enviro
 
 #### HSM - Hardware Security Module
 
+<!-- TODO-PQEID: HSM/PKCS#11 key storage (software, HSM_* config, Securosys Primus) is
+     classical EC key management only in this version. CBOM ref E04/E32. -->
 For operations with an HSM, the keys need not be mounted directly into the environment running this application.
 Instead, a connection is created to the HSM via JCA. This can be with
 the [Sun PKCS11 provider](https://docs.oracle.com/en/java/javase/22/security/pkcs11-reference-guide1.html) or a vendor

@@ -68,6 +68,8 @@
             <artifactId>micrometer-tracing-bridge-brave</artifactId>
         </dependency>
 
+        <!-- TODO-PQEID: Nimbus JOSE/JWT + BouncyCastle bcpkix - classical JWS/JWE/JWT signing,
+             verification and PEM key loading throughout the issuer. CBOM ref E02. -->
         <!-- Security & JWT / Crypto -->
         <dependency>
             <groupId>com.nimbusds</groupId>
@@ -105,6 +107,8 @@
             <artifactId>caffeine</artifactId>
         </dependency>
 
+        <!-- TODO-PQEID: Authlete SD-JWT lib - builds/parses the credential's selective-disclosure
+             structure signed with the classical algorithms below (ES256 etc). CBOM ref E02/E17. -->
         <!-- SD-JWT (JWT Standardization) -->
         <dependency>
             <groupId>com.authlete</groupId>
@@ -172,6 +176,9 @@
             <artifactId>spring-statemachine-starter</artifactId>
             <version>4.0.1</version>
         </dependency>
+        <!-- TODO-PQEID: shared swiyu crypto helper libs - actual JWS signer, DID-based key
+             resolution, JWE encryption, JWT/DPoP handling and trust-statement signature
+             verification backends live here, not fully observable from this repo. CBOM ref E34. -->
         <dependency>
             <groupId>ch.admin.swiyu</groupId>
             <artifactId>swiyu-jws-signature-service</artifactId>
@@ -197,6 +204,10 @@
             <artifactId>swiyu-dpop-util</artifactId>
             <version>${generic-java-lib.version}</version>
         </dependency>
+        <!-- TODO-PQEID: new since the CBOM review, no CBOM reference. DID-resolved JWT
+             signature verification for Trust Protocol 2.0 trust statements (see
+             service/trustregistry/TrustStatementValidator) - classical algorithm support
+             lives in this shared lib, not observable from this repo alone. -->
         <!-- JWT validation via DID-based Flow B for Trust Statement signature verification -->
         <dependency>
             <groupId>ch.admin.swiyu</groupId>
@@ -247,6 +258,8 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
+                    <!-- TODO-PQEID: HSM (Securosys Primus, PKCS#11) key storage support - classical
+                         EC/RSA keys only in this version. CBOM ref E04. -->
                     <!-- Required for HSM Library (primusX) -->
                     <includeSystemScope>true</includeSystemScope>
                     <excludes>
