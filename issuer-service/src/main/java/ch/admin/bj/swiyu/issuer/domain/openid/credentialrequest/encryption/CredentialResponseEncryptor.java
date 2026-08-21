@@ -4,9 +4,10 @@ import ch.admin.bj.swiyu.issuer.common.exception.Oid4vcException;
 import ch.admin.bj.swiyu.issuer.domain.openid.credentialrequest.CredentialResponseEncryptionClass;
 import ch.admin.bj.swiyu.issuer.domain.openid.metadata.IssuerCredentialResponseEncryption;
 import com.nimbusds.jose.*;
-import com.nimbusds.jose.crypto.ECDHEncrypter;
+import com.nimbusds.jose.crypto.XWingEncrypter;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.KeyType;
+import com.nimbusds.jose.jwk.XWingKey;
 import jakarta.annotation.Nullable;
 
 import java.util.Map;
@@ -87,8 +88,9 @@ public class CredentialResponseEncryptor {
     private JWEEncrypter guardedCreateEncrypter(JWK key) {
         try {
             KeyType keyType = key.getKeyType();
-            if (keyType == KeyType.EC) {
-                return new ECDHEncrypter(key.toECKey().toECPublicKey());
+            // PQEID: EC (ECDH-ES) -> XWING (post-quantum hybrid KEM, X25519+ML-KEM-768)
+            if (keyType.equals(XWingKey.KEY_TYPE)) {
+                return new XWingEncrypter(key.toXWingKey());
             } else {
                 throw new Oid4vcException(INVALID_ENCRYPTION_PARAMETERS,
                         "Unsupported kty " + keyType.getValue(),

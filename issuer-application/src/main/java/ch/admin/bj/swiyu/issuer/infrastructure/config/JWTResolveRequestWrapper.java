@@ -6,8 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.JWSVerifier;
-import com.nimbusds.jose.crypto.ECDSAVerifier;
-import com.nimbusds.jose.crypto.RSASSAVerifier;
+import com.nimbusds.jose.crypto.MLDSAVerifier;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.KeyType;
@@ -49,10 +48,8 @@ public class JWTResolveRequestWrapper extends HttpServletRequestWrapper {
     }
 
     private static JWSVerifier buildVerifier(KeyType kty, JWK key) throws JOSEException {
-        if (KeyType.EC.equals(kty)) {
-            return new ECDSAVerifier(key.toECKey().toPublicJWK());
-        } else if (KeyType.RSA.equals(kty)) {
-            return new RSASSAVerifier(key.toRSAKey().toPublicJWK());
+        if (KeyType.AKP.equals(kty)) {
+            return new MLDSAVerifier(key.toMLDSAKey().toPublicJWK());
         }
         throw new JOSEException("Unsupported Key Type %s".formatted(kty));
     }

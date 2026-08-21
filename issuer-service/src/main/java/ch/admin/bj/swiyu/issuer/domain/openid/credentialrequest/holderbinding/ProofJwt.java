@@ -7,8 +7,8 @@ import ch.admin.bj.swiyu.issuer.common.exception.Oid4vcException;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.JWSVerifier;
-import com.nimbusds.jose.crypto.ECDSAVerifier;
-import com.nimbusds.jose.jwk.ECKey;
+import com.nimbusds.jose.crypto.MLDSAVerifier;
+import com.nimbusds.jose.jwk.MLDSAKey;
 import com.nimbusds.jwt.SignedJWT;
 import org.springframework.util.StringUtils;
 
@@ -81,8 +81,11 @@ public class ProofJwt extends Proof implements AttestableProof {
 
             validateJwtClaims(issuerId);
 
-            ECKey holderKey = getNormalizedECKey(header);
-            JWSVerifier verifier = new ECDSAVerifier(holderKey);
+            // header.getAlgorithm() was already checked above against supportedSigningAlgorithms
+            // (ML-DSA-44/65/87 only, see SupportedProofType), so the embedded holder jwk is
+            // always an AKP/ML-DSA key by this point.
+            MLDSAKey holderKey = getHolderKey(header);
+            JWSVerifier verifier = new MLDSAVerifier(holderKey);
             if (!signedJWT.verify(verifier)) {
                 throw proofException("Proof JWT is not valid!",
                         Map.of("alg", header.getAlgorithm() != null ? header.getAlgorithm().getName() : "null"));
@@ -214,14 +217,14 @@ public class ProofJwt extends Proof implements AttestableProof {
     }
 
     /**
-     * Gets the ECKey from jwk header entry
+     * Gets the MLDSAKey from jwk header entry
      *
-     * @return the Holder's ECKey
+     * @return the Holder's MLDSAKey
      */
-    private ECKey getNormalizedECKey(JWSHeader header) {
+    private MLDSAKey getHolderKey(JWSHeader header) {
         // Public key is present as jwk
         if (header.getJWK() != null) {
-            return header.getJWK().toECKey();
+            return header.getJWK().toMLDSAKey();
         }
 
         // No public key present which the current system supports

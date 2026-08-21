@@ -5,12 +5,11 @@ import ch.admin.bj.swiyu.issuer.domain.openid.EncryptionKey;
 import ch.admin.bj.swiyu.issuer.domain.openid.EncryptionKeyRepository;
 import ch.admin.bj.swiyu.issuer.common.exception.CredentialRequestError;
 import ch.admin.bj.swiyu.issuer.common.exception.Oid4vcException;
-import com.nimbusds.jose.Algorithm;
 import com.nimbusds.jose.JOSEException;
-import com.nimbusds.jose.jwk.Curve;
-import com.nimbusds.jose.jwk.ECKey;
+import com.nimbusds.jose.JWEAlgorithm;
 import com.nimbusds.jose.jwk.JWKSet;
-import com.nimbusds.jose.jwk.gen.ECKeyGenerator;
+import com.nimbusds.jose.jwk.XWingKey;
+import com.nimbusds.jose.jwk.gen.XWingKeyGenerator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -108,8 +107,9 @@ public class EncryptionKeyService {
     private void createNewKeys() {
         try {
             log.debug("Create new ephemeral encryption key");
-            ECKey ephemeralEncryptionKey = new ECKeyGenerator(Curve.P_256)
-                    .algorithm(new Algorithm("ECDH-ES"))
+            // PQEID: ECDH-ES (EC P-256) -> XWING (post-quantum hybrid KEM, X25519+ML-KEM-768)
+            XWingKey ephemeralEncryptionKey = new XWingKeyGenerator()
+                    .algorithm(JWEAlgorithm.XWING)
                     .keyID(UUID.randomUUID().toString())
                     .generate();
             JWKSet jwks = new JWKSet(ephemeralEncryptionKey);

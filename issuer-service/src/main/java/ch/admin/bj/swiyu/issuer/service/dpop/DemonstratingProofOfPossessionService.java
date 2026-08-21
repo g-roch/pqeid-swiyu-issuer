@@ -196,7 +196,7 @@ public class DemonstratingProofOfPossessionService {
             throw new DemonstratingProofOfPossessionException("DPoP header is missing embedded JWK",
                     DemonstratingProofOfPossessionError.INVALID_DPOP_PROOF);
         }
-        keyAttestationService.verifyKeyPresentInAttestation(dpopJwk.toECKey(), attestation);
+        keyAttestationService.verifyKeyPresentInAttestation(dpopJwk, attestation);
     }
 
 }

@@ -4,8 +4,7 @@ import ch.admin.bj.swiyu.issuer.common.profile.SwissProfileVersions;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
-import com.nimbusds.jose.crypto.ECDSAVerifier;
-import com.nimbusds.jose.jwk.ECKey;
+import com.nimbusds.jose.crypto.MLDSAVerifier;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
@@ -28,8 +27,7 @@ public final class AttestationJwt {
     private static final String KEY_ATTESTATION_TYPE_ID1 = "keyattestation+jwt";
     private static final Set<AttackPotentialResistance> SUPPORTED_ATTACK_POTENTIAL_RESISTANCE = Set.of(AttackPotentialResistance.ISO_18045_ENHANCED_BASIC, AttackPotentialResistance.ISO_18045_HIGH);
     private static final Set<String> ALLOWED_TYPES = Set.of(KEY_ATTESTATION_TYPE_ID1, "key-attestation+jwt");
-    // For now we only support ECDSA for Attestations
-    private static final Set<JWSAlgorithm> ALLOWED_ALGORITHMS = Set.of(JWSAlgorithm.ES256, JWSAlgorithm.ES384, JWSAlgorithm.ES512);
+    private static final Set<JWSAlgorithm> ALLOWED_ALGORITHMS = Set.of(JWSAlgorithm.ML_DSA_44, JWSAlgorithm.ML_DSA_65, JWSAlgorithm.ML_DSA_87);
     private final SignedJWT signedJWT;
     private final List<AttackPotentialResistance> attestedAttackPotentialResistance;
     private final JWTClaimsSet claims;
@@ -164,10 +162,16 @@ public final class AttestationJwt {
      * @return true if the attestation is valid and the resistance is matching
      * @throws JOSEException if the fetched Key can not be parsed as a supported JWSVerifier
      */
+    // PQEID: keyResolver resolves the attestation provider's key via DID resolution
+    // (DidKeyResolverFacade -> DidResolverAdapter), which serializes the did_sidekicks
+    // Rust Jwk struct (EC-only fields) through nimbus's generic JWK.parse() - that struct
+    // cannot carry ML-DSA public key material (see pqeid ML-DSA/DID resolver blocker
+    // memory), so this will fail against a real ML-DSA-published attestation provider DID
+    // until that upstream Rust dependency is extended.
     public boolean isValidAttestation(@NotNull KeyResolver keyResolver, @NotNull List<AttackPotentialResistance> resistance) throws JOSEException {
         var header = signedJWT.getHeader();
         var key = keyResolver.resolveKey(header.getKeyID());
-        if (!signedJWT.verify(new ECDSAVerifier(key.toECKey()))) {
+        if (!signedJWT.verify(new MLDSAVerifier(key.toMLDSAKey()))) {
             throw new JOSEException("JWT verification failed");
         }
         if (resistance.isEmpty()) {
@@ -185,11 +189,11 @@ public final class AttestationJwt {
      * <a href="https://www.rfc-editor.org/rfc/rfc7638">RFC 7638</a> to ensure canonical key comparison
      * independent of field ordering.
      *
-     * @param proofKey the EC key extracted from the holder proof JWT
+     * @param proofKey the key extracted from the holder proof JWT
      * @return {@code true} if the proof key matches one of the attested keys, {@code false} otherwise
      * @throws JOSEException if a thumbprint cannot be computed
      */
-    public boolean containsKey(@NotNull ECKey proofKey) throws JOSEException {
+    public boolean containsKey(@NotNull JWK proofKey) throws JOSEException {
         var proofThumbprint = proofKey.toPublicJWK().computeThumbprint().toString();
         var rawAttestedKeys = claims.getClaim("attested_keys");
 

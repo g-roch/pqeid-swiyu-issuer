@@ -177,7 +177,8 @@ public class JweService {
                             "kidLength", kid != null ? kid.length() : 0
                     ));
         }
-        if (!JWEAlgorithm.Family.ECDH_ES.contains(header.getAlgorithm())) {
+        // PQEID: ECDH-ES family -> XWING (single algorithm, no "family" grouping needed)
+        if (!JWEAlgorithm.XWING.equals(header.getAlgorithm())) {
             throw new Oid4vcException(INVALID_ENCRYPTION_PARAMETERS, "Unsupported Encryption Algorithm");
         }
 

@@ -99,7 +99,7 @@ public class CredentialConfiguration {
      */
     @JsonProperty("credential_signing_alg_values_supported")
     @Valid
-    private List<@Pattern(regexp = "^ES256$") String> credentialSigningAlgorithmsSupported;
+    private List<@Pattern(regexp = "^ML-DSA-(44|65|87)$") String> credentialSigningAlgorithmsSupported;
 
     /**
      * Define what kind of proof the holder is allowed to provide for the credential
@@ -118,6 +118,8 @@ public class CredentialConfiguration {
     @JsonProperty("credential_metadata")
     private CredentialConfigurationMetadata credentialMetadata;
 
+    // TODO-PQEID: new since the CBOM review, no CBOM reference. Carries a DID-signed trust
+    // statement JWT (see service/trustregistry/TrustStatementInjectionService/Validator).
     /**
      * Protected Issuance Authorization Trust Statement (piaTS) JWT as defined by Trust Protocol 2.0.
      * Injected at runtime for credential configurations that require key attestation (Protected VCs).

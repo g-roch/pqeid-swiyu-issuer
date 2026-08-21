@@ -228,7 +228,7 @@ public class SdJwtCredential extends CredentialBuilder {
     private SignedJWT createSignedJWT(ConfigurationOverride override,
                                       SDObjectBuilder builder) {
         try {
-            JWSHeader header = new JWSHeader.Builder(JWSAlgorithm.ES256)
+            JWSHeader header = new JWSHeader.Builder(JWSAlgorithm.ML_DSA_44)
                     .type(new JOSEObjectType(SD_JWT_FORMAT))
                     .keyID(override.verificationMethodOrDefault(sdjwtProperties.getVerificationMethod()))
                     .customParam(SwissProfileVersions.PROFILE_VERSION_PARAM, SwissProfileVersions.VC_PROFILE_VERSION)

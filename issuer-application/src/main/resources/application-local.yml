@@ -39,6 +39,7 @@ application:
   json-schema-metadata-files:
     my-schema-v01: "classpath:example_json_schema.json"
 
+  # TODO: TODO-PQEID: private EC-key to be replaced (PRIVATE KEY ????)
   status-list:
     private-key: "-----BEGIN EC PRIVATE KEY-----\nMHcCAQEEIDqMm9PvL4vpyFboAwaeViQsH30CkaDcVtRniZPezFxpoAoGCCqGSM49\nAwEHoUQDQgAEQgjeqGSdu+2jq8+n78+6fXk2Yh22lQKBYCnu5FWPvKtat3wFEsQX\nqNHYgPXBxWmOBw5l2PE/gUDUJqGJSc1LuQ==\n-----END EC PRIVATE KEY-----"
     verification-method: "did:example:123456789#example-method"

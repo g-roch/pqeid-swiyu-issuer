@@ -299,11 +299,11 @@ public class MetadataService {
             }
 
             /*
-             * alg: Must be ES256
+             * alg: ML-DSA-44 (this project's post-quantum signing algorithm)
              * typ: Must be openidvci-issuer-metadata+jwt
              * kid: Must be the time when the JWT was issued
              */
-            JWSHeader header = new JWSHeader.Builder(JWSAlgorithm.ES256)
+            JWSHeader header = new JWSHeader.Builder(JWSAlgorithm.ML_DSA_44)
                     .keyID(override.verificationMethodOrDefault(sdjwtProperties.getVerificationMethod()))
                     .type(new JOSEObjectType("openidvci-issuer-metadata+jwt"))
                     .customParam(SwissProfileVersions.PROFILE_VERSION_PARAM, SwissProfileVersions.ISSUANCE_PROFILE_VERSION)

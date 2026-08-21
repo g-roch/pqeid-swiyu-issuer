@@ -8,7 +8,7 @@ import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.JWSVerifier;
-import com.nimbusds.jose.crypto.ECDSAVerifier;
+import com.nimbusds.jose.crypto.MLDSAVerifier;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
@@ -71,17 +71,22 @@ public abstract class AbstractSigningKeyVerificationHealthChecker<T extends Sign
     }
 
     private SignedJWT createTestJwt() {
-        JWSHeader header = new JWSHeader.Builder(JWSAlgorithm.ES256).build();
+        JWSHeader header = new JWSHeader.Builder(JWSAlgorithm.ML_DSA_44).build();
         JWTClaimsSet payload = new JWTClaimsSet.Builder()
             .subject(TEST_JWT_SUBJECT)
             .build();
         return new SignedJWT(header, payload);
     }
 
+    // PQEID: jwk is resolved via DidResolverAdapter, which serializes the did_sidekicks
+    // Rust Jwk struct (EC-only fields) through nimbus's generic JWK.parse() - that struct
+    // cannot carry ML-DSA public key material (see pqeid ML-DSA/DID resolver blocker
+    // memory), so this health check is expected to report DOWN against a real ML-DSA
+    // verification method until that upstream Rust dependency is extended.
     private boolean verifySignature(SignedJWT signedJwt, JWK jwk) throws JOSEException{
-        JWK publicKey = jwk.toECKey();
+        JWK publicKey = jwk.toMLDSAKey();
 
-        JWSVerifier verifier = new ECDSAVerifier(publicKey.toECKey());
+        JWSVerifier verifier = new MLDSAVerifier(publicKey.toMLDSAKey());
         return signedJwt.verify(verifier);
     }
 

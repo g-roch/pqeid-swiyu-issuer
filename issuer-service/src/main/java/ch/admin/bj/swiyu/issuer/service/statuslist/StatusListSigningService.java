@@ -55,7 +55,7 @@ public class StatusListSigningService {
     private SignedJWT buildUnsignedStatusListJwt(StatusList statusList, TokenStatusListToken token) {
         var override = statusList.getConfigurationOverride();
 
-        JWSHeader header = new JWSHeader.Builder(JWSAlgorithm.ES256)
+        JWSHeader header = new JWSHeader.Builder(JWSAlgorithm.ML_DSA_44)
                 .keyID(override.verificationMethodOrDefault(statusListProperties.getVerificationMethod()))
                 .type(new JOSEObjectType("statuslist+jwt"))
                 .customParam(SwissProfileVersions.PROFILE_VERSION_PARAM, SwissProfileVersions.VC_PROFILE_VERSION)

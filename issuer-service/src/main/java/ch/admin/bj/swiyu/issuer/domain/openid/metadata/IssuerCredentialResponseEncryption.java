@@ -23,11 +23,12 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 public class IssuerCredentialResponseEncryption extends IssuerCredentialEncryption {
+    // PQEID: ECDH-ES -> XWING (post-quantum hybrid KEM, X25519+ML-KEM-768)
     @JsonProperty("alg_values_supported")
     @NotEmpty
     @Valid
     @Builder.Default
-    private List<@Pattern(regexp = "^ECDH-ES$") String> algValuesSupported = List.of("ECDH-ES");
+    private List<@Pattern(regexp = "^XWING$") String> algValuesSupported = List.of("XWING");
 
     public boolean contains(CredentialResponseEncryptionClass requestedEncryption) {
         return algValuesSupported.contains(requestedEncryption.extractAlg())
