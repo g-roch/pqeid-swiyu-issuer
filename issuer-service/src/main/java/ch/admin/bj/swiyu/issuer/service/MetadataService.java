@@ -16,7 +16,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JOSEObjectType;
-import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.JWSSigner;
 import com.nimbusds.jwt.JWTClaimsSet;
@@ -37,6 +36,7 @@ import ch.admin.bj.swiyu.issuer.service.enc.JweService;
 import ch.admin.bj.swiyu.issuer.service.management.CredentialManagementService;
 import ch.admin.bj.swiyu.issuer.service.trustregistry.TrustStatementInjectionService;
 import ch.admin.bj.swiyu.jwssignatureservice.factory.strategy.KeyStrategyException;
+import ch.admin.bj.swiyu.jwssignatureservice.SignerAlgorithm;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -299,14 +299,15 @@ public class MetadataService {
             }
 
             /*
-             * alg: ML-DSA-44 (this project's post-quantum signing algorithm)
+             * alg: the configured key's algorithm (PQEID: SignerAlgorithm, not a constant)
              * typ: Must be openidvci-issuer-metadata+jwt
              * kid: Must be the time when the JWT was issued
              */
-            JWSHeader header = new JWSHeader.Builder(JWSAlgorithm.ML_DSA_44)
+            JWSHeader header = new JWSHeader.Builder(SignerAlgorithm.of(signer))
                     .keyID(override.verificationMethodOrDefault(sdjwtProperties.getVerificationMethod()))
                     .type(new JOSEObjectType("openidvci-issuer-metadata+jwt"))
-                    .customParam(SwissProfileVersions.PROFILE_VERSION_PARAM, SwissProfileVersions.ISSUANCE_PROFILE_VERSION)
+                    .customParam(SwissProfileVersions.PROFILE_VERSION_PARAM,
+                            SwissProfileVersions.ISSUANCE_PROFILE_VERSION)
                     .build();
 
             JWTClaimsSet claimsSet = prepareJWTClaimsSet(override, metaDataJson, createTenantCredentialIssuerIdentifier(tenantId));

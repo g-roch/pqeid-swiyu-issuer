@@ -1,6 +1,7 @@
 package ch.admin.bj.swiyu.issuer.infrastructure.health;
 
 
+import ch.admin.bj.swiyu.issuer.common.config.ApplicationProperties;
 import ch.admin.bj.swiyu.issuer.common.config.StatusListProperties;
 import ch.admin.bj.swiyu.issuer.domain.openid.credentialrequest.holderbinding.KeyResolver;
 import ch.admin.bj.swiyu.issuer.service.JwsSignatureFacade;
@@ -15,7 +16,8 @@ public class StatusListSigningKeyVerificationHealthChecker extends AbstractSigni
 
     public StatusListSigningKeyVerificationHealthChecker(KeyResolver keyResolver,
                                                          StatusListProperties statusListProperties,
-                                                         JwsSignatureFacade jwsSignatureFacade) {
-        super(keyResolver, jwsSignatureFacade, statusListProperties);
+                                                         JwsSignatureFacade jwsSignatureFacade,
+                                                        ApplicationProperties applicationProperties) {
+        super(keyResolver, jwsSignatureFacade, statusListProperties, applicationProperties);
     }
 }

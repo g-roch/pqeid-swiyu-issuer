@@ -34,7 +34,7 @@ public class JWTFilter implements Filter {
         }
 
         try {
-            filterChain.doFilter(JWTResolveRequestWrapper.createAndValidate(request, config.getAllowedKeySet()),
+            filterChain.doFilter(JWTResolveRequestWrapper.createAndValidate(request, config.getAllowedKeySet(), config.acceptedSignatureJwsAlgorithms()),
                     servletResponse);
         } catch (Exception e) {
             // as filters cannot be handled by the default exception handler, we need to set the error code and message manually

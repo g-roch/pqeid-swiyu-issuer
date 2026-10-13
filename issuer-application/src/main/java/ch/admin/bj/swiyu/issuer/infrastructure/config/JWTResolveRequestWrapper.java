@@ -1,12 +1,13 @@
 package ch.admin.bj.swiyu.issuer.infrastructure.config;
 
+import ch.admin.bj.swiyu.jwtutil.JwtUtil;
 import ch.admin.bj.swiyu.issuer.common.exception.BadRequestException;
 import ch.admin.bj.swiyu.issuer.common.exception.NotImplementedError;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.JOSEException;
+import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.JWSVerifier;
-import com.nimbusds.jose.crypto.MLDSAVerifier;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.jwk.JWKSet;
 import com.nimbusds.jose.jwk.KeyType;
@@ -24,6 +25,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.text.ParseException;
 import java.util.stream.Collectors;
+import java.util.Set;
 
 
 /**
@@ -38,39 +40,21 @@ public class JWTResolveRequestWrapper extends HttpServletRequestWrapper {
     private final SignedJWT jwt;
     private final String dataClaim;
 
-    private JWTResolveRequestWrapper(HttpServletRequest request, JWKSet allowedKeys)
-            throws IOException, ParseException, JOSEException {
+    private JWTResolveRequestWrapper(HttpServletRequest request, JWKSet allowedKeys, Set<JWSAlgorithm> accepted)
+            throws IOException, ParseException {
         super(request);
         String jwtString = request.getReader().lines().collect(Collectors.joining());
         this.jwt = SignedJWT.parse(jwtString);
-        verifyJwt(this.jwt, allowedKeys);
+        // PQEID: kid lookup + verifier from the key type, gated by the issuer policy (shared JwtUtil logic,
+        // replaces this class's private ML-DSA-only copy)
+        JwtUtil.verifySignedJwt(this.jwt, allowedKeys, accepted);
         this.dataClaim = jwt.getJWTClaimsSet().getStringClaim("data");
     }
 
-    private static JWSVerifier buildVerifier(KeyType kty, JWK key) throws JOSEException {
-        if (KeyType.AKP.equals(kty)) {
-            return new MLDSAVerifier(key.toMLDSAKey().toPublicJWK());
-        }
-        throw new JOSEException("Unsupported Key Type %s".formatted(kty));
-    }
-
-    private static void verifyJwt(SignedJWT jwt, JWKSet allowedKeys) throws JOSEException {
-        JWSHeader jwtHeader = jwt.getHeader();
-        JWK matchingKey = allowedKeys.getKeyByKeyId(jwtHeader.getKeyID());
-        if (matchingKey == null) {
-            log.warn("No matching allowed key has been found for the received JWT");
-            throw new BadRequestException("Unknown Key has been used in signing the JWT");
-        }
-        KeyType kty = matchingKey.getKeyType();
-        if (!jwt.verify(buildVerifier(kty, matchingKey))) {
-            log.warn("Request with invalid JWT encoding intercepted");
-            throw new BadRequestException("Request JWT verification failed");
-        }
-    }
-
-    public static JWTResolveRequestWrapper createAndValidate(HttpServletRequest request, JWKSet allowedKeys) {
+    public static JWTResolveRequestWrapper createAndValidate(HttpServletRequest request, JWKSet allowedKeys,
+                                                             Set<JWSAlgorithm> accepted) {
         try {
-            return new JWTResolveRequestWrapper(request, allowedKeys);
+            return new JWTResolveRequestWrapper(request, allowedKeys, accepted);
         } catch (Exception e) {
             log.info("Parsing communication JWT failed.", e);
             throw new BadRequestException("Request is not JWT encoded");

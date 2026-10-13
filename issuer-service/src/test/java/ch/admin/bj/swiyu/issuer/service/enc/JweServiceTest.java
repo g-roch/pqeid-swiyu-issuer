@@ -7,6 +7,11 @@ import ch.admin.bj.swiyu.issuer.domain.openid.EncryptionKeyRepository;
 import ch.admin.bj.swiyu.issuer.domain.openid.metadata.IssuerCredentialRequestEncryption;
 import ch.admin.bj.swiyu.issuer.domain.openid.metadata.IssuerMetadata;
 import ch.admin.bj.swiyu.jweutil.JweUtil;
+import com.nimbusds.jose.crypto.XWingEncrypter;
+import com.nimbusds.jose.JWEHeader;
+import com.nimbusds.jose.EncryptionMethod;
+import com.nimbusds.jose.JWEObject;
+import com.nimbusds.jose.Payload;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWEAlgorithm;
 import com.nimbusds.jose.jwk.JWK;
@@ -62,7 +67,7 @@ class JweServiceTest {
         var requestEncryption = issuerMetadata.getRequestEncryption();
         var responseEncryption = issuerMetadata.getResponseEncryption();
         for (var encryptionSpec : List.of(requestEncryption, responseEncryption)) {
-            assertThat(encryptionSpec.getEncValuesSupported()).contains("A128GCM").contains("A256GCM");
+            assertThat(encryptionSpec.getEncValuesSupported()).containsExactly("A256GCM"); // PQEID: A128GCM contracted
             assertThat(encryptionSpec.getZipValuesSupported()).contains("DEF");
         }
     }
@@ -80,6 +85,22 @@ class JweServiceTest {
         String encrypted = createEncryptedMessage(plaintext, activeKey);
         String decrypted = assertDoesNotThrow(() -> jweService.decrypt(encrypted));
         assertEquals(plaintext, decrypted);
+    }
+
+    /**
+     * PQEID: after the AES-256 contraction, an A128GCM request must be refused.
+     */
+    @Test
+    void rejectsA128GcmRequest() throws Exception {
+        jweService.issuerMetadataWithEncryptionOptions();
+        var key = JWKSet.parse(issuerMetadata.getRequestEncryption().getJwks()).getKeys().getFirst();
+        var header = new JWEHeader.Builder(JWEAlgorithm.XWING, EncryptionMethod.A128GCM)
+                .keyID(key.getKeyID()).build();
+        var jwe = new JWEObject(header, new Payload("Hello World"));
+        jwe.encrypt(new XWingEncrypter(key.toXWingKey()));
+
+        var ex = assertThrows(Oid4vcException.class, () -> jweService.decrypt(jwe.serialize()));
+        assertThat(ex.getMessage()).contains("Unsupported encryption method");
     }
 
     /**

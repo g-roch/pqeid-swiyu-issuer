@@ -1,6 +1,7 @@
 package ch.admin.bj.swiyu.issuer.infrastructure.health;
 
 
+import ch.admin.bj.swiyu.issuer.common.config.ApplicationProperties;
 import ch.admin.bj.swiyu.issuer.common.config.SdjwtProperties;
 import ch.admin.bj.swiyu.issuer.domain.openid.credentialrequest.holderbinding.KeyResolver;
 import ch.admin.bj.swiyu.issuer.service.JwsSignatureFacade;
@@ -16,7 +17,8 @@ public class SdJwtSigningKeyVerificationHealthChecker extends AbstractSigningKey
     // Lombok won't generate a constructor calling super, define explicit one
     public SdJwtSigningKeyVerificationHealthChecker(KeyResolver keyResolver,
                                                     SdjwtProperties sdjwtProperties,
-                                                    JwsSignatureFacade jwsSignatureFacade) {
-        super(keyResolver, jwsSignatureFacade, sdjwtProperties);
+                                                    JwsSignatureFacade jwsSignatureFacade,
+                                                    ApplicationProperties applicationProperties) {
+        super(keyResolver, jwsSignatureFacade, sdjwtProperties, applicationProperties);
     }
 }

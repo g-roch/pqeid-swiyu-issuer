@@ -1,5 +1,11 @@
 package ch.admin.bj.swiyu.issuer.domain.openid.credentialrequest.holderbinding;
 
+import ch.admin.bj.swiyu.jwtutil.SignatureVerifiers;
+
+import com.nimbusds.jose.JWSSigner;
+import com.nimbusds.jose.crypto.CompositeSigner;
+import com.nimbusds.jose.jwk.CompositeMLDSAKey;
+import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.JWSAlgorithm;
@@ -178,5 +184,73 @@ class AttestationJwtTest {
         signedJwt.sign(new MLDSASigner(issuerKey));
 
         return AttestationJwt.parseJwt(signedJwt.serialize(), false);
+    }
+
+    private static CompositeMLDSAKey compositeKey(String kid) throws Exception {
+        java.security.Security.addProvider(
+                com.nimbusds.jose.crypto.bc.BouncyCastleProviderSingleton.getInstance());
+        var kp = java.security.KeyPairGenerator.getInstance("MLDSA65-ECDSA-P256-SHA512", "BC")
+                .generateKeyPair();
+        return CompositeMLDSAKey.fromJCA(kp.getPublic(), kp.getPrivate(), kid);
+    }
+
+    /** A key attestation signed by {@code providerKey} (its kid = DID#fragment), attesting one holder key. */
+    private static AttestationJwt attestationSignedWith(JWK providerKey, JWSSigner signer) throws Exception {
+        var holderKey = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44).generate().toPublicJWK();
+        var jwt = new SignedJWT(
+                new JWSHeader.Builder((JWSAlgorithm) providerKey.getAlgorithm())
+                        .keyID(providerKey.getKeyID())
+                        .type(new JOSEObjectType("key-attestation+jwt"))
+                        .build(),
+                        new JWTClaimsSet.Builder()
+                        .issuer(providerKey.getKeyID().split("#")[0])
+                        .issueTime(new Date())
+                        .expirationTime(Date.from(Instant.now().plusSeconds(60)))
+                        .claim("attested_keys", List.of(holderKey.toJSONObject()))
+                        .claim("key_storage", List.of(AttackPotentialResistance.ISO_18045_HIGH.getValue()))
+                        .build());
+        jwt.sign(signer);
+        return AttestationJwt.parseJwt(jwt.serialize(), false);
+    }
+
+    @Test
+    void compositeProvider_withinPolicy_isValid() throws Exception {
+        // Arrange
+        var providerKey = compositeKey("did:example:provider#key-1");
+        var attestation = attestationSignedWith(providerKey, new CompositeSigner(providerKey));
+
+        // Act
+         boolean valid = attestation.isValidAttestation(kid -> providerKey.toPublicJWK(), List.of(),
+                SignatureVerifiers.MIGRATION_DEFAULT);
+
+        // Assert
+        assertThat(valid).isTrue();
+    }
+
+    @Test
+    void mldsa44Provider_underContractPolicy_isRejectedWithReason() throws Exception {
+        // Arrange
+        var providerKey = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44).keyID("did:example:provider#key-1").generate();
+        var attestation = attestationSignedWith(providerKey, new MLDSASigner(providerKey));
+
+        // Act / Assert
+        var ex = Assertions.assertThrows(IllegalArgumentException.class,
+                () -> attestation.isValidAttestation(kid -> providerKey.toPublicJWK(), List.of(),
+                        java.util.Set.of(JWSAlgorithm.ML_DSA_65_ES256)));
+        assertThat(ex.getMessage()).contains("not accepted");
+    }
+
+    /** Upstream bug: a missing typ caused an NPE instead of a clean rejection. */
+    @Test
+    void missingTyp_isRejectedCleanly() throws Exception {
+        // Arrange
+        var providerKey = new MLDSAKeyGenerator(JWSAlgorithm.ML_DSA_44).keyID("did:example:provider#key-1").generate();
+        var jwt = new SignedJWT(new JWSHeader.Builder(JWSAlgorithm.ML_DSA_44).keyID(providerKey.getKeyID()).build(),
+                new JWTClaimsSet.Builder().issuer("did:example:provider").issueTime(new Date()).build());
+        jwt.sign(new MLDSASigner(providerKey));
+
+        // Act / Assert
+        Assertions.assertThrows(IllegalArgumentException.class,
+                () -> AttestationJwt.parseJwt(jwt.serialize(), false));
     }
 }

@@ -1,5 +1,7 @@
 package ch.admin.bj.swiyu.issuer.domain.openid.credentialrequest.holderbinding;
 
+import ch.admin.bj.swiyu.jwtutil.JwtUtilException;
+import ch.admin.bj.swiyu.jwtutil.SignatureVerifiers;
 import ch.admin.bj.swiyu.issuer.common.exception.CredentialRequestError;
 import ch.admin.bj.swiyu.issuer.common.exception.ExpiredNonceException;
 import ch.admin.bj.swiyu.issuer.common.exception.InvalidNonceException;
@@ -7,13 +9,14 @@ import ch.admin.bj.swiyu.issuer.common.exception.Oid4vcException;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.JWSVerifier;
-import com.nimbusds.jose.crypto.MLDSAVerifier;
-import com.nimbusds.jose.jwk.MLDSAKey;
+import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jwt.SignedJWT;
 import org.springframework.util.StringUtils;
 
 import java.text.ParseException;
 import java.time.Instant;
+import java.util.stream.Collectors;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -81,11 +84,12 @@ public class ProofJwt extends Proof implements AttestableProof {
 
             validateJwtClaims(issuerId);
 
-            // header.getAlgorithm() was already checked above against supportedSigningAlgorithms
-            // (ML-DSA-44/65/87 only, see SupportedProofType), so the embedded holder jwk is
-            // always an AKP/ML-DSA key by this point.
-            MLDSAKey holderKey = getHolderKey(header);
-            JWSVerifier verifier = new MLDSAVerifier(holderKey);
+             // PQEID: verifier from the holder key's type, gated by the algorithms this
+            // credential configuration advertises (proof_signing_alg_values_supported)
+            JWK holderKey = getHolderKey(header);
+            JWSVerifier verifier = SignatureVerifiers.forKey(holderKey, header.getAlgorithm(),
+                    supportedSigningAlgorithms.stream().map(JWSAlgorithm::parse)
+                            .collect(Collectors.toUnmodifiableSet()));
             if (!signedJWT.verify(verifier)) {
                 throw proofException("Proof JWT is not valid!",
                         Map.of("alg", header.getAlgorithm() != null ? header.getAlgorithm().getName() : "null"));
@@ -98,8 +102,11 @@ public class ProofJwt extends Proof implements AttestableProof {
                         Map.of("tokenExpired", true));
             }
 
-            this.holderKeyJson = holderKey.toJSONString();
-
+            this.holderKeyJson = holderKey.toPublicJWK().toJSONString();
+        
+        } catch (JwtUtilException e) {
+            throw proofException("Key is not usable; " + e.getMessage(),
+                    Map.of("alg", signedJWT != null ? signedJWT.getHeader().getAlgorithm().getName() : "null"));
         } catch (ParseException e) {
             throw proofException(
                     "Provided Proof JWT is not parseable; " + e.getMessage(),
@@ -216,15 +223,14 @@ public class ProofJwt extends Proof implements AttestableProof {
         }
     }
 
-    /**
-     * Gets the MLDSAKey from jwk header entry
-     *
-     * @return the Holder's MLDSAKey
+     /**
+     * Gets the holder's public key from the jwk header entry (ML-DSA or composite; the type is
+     * checked by SignatureVerifiers against the advertised algorithms).
      */
-    private MLDSAKey getHolderKey(JWSHeader header) {
+    private JWK getHolderKey(JWSHeader header) {
         // Public key is present as jwk
         if (header.getJWK() != null) {
-            return header.getJWK().toMLDSAKey();
+            return header.getJWK();
         }
 
         // No public key present which the current system supports

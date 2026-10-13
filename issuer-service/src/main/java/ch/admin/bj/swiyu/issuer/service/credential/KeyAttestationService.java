@@ -87,7 +87,8 @@ public class KeyAttestationService {
             var trustedAttestationServices = applicationProperties.getTrustedAttestationProviders();
             attestation.throwIfNotTrustedAttestationProvider(trustedAttestationServices);
 
-            if (!attestation.isValidAttestation(keyResolver, attestationRequirement.getKeyStorage())) {
+            if (!attestation.isValidAttestation(keyResolver, attestationRequirement.getKeyStorage(),
+                    applicationProperties.acceptedSignatureJwsAlgorithms())) {
                 throw new Oid4vcException(INVALID_PROOF, "Key attestation was invalid or not matching the attack resistance for the credential!");
             }
 

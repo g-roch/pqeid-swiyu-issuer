@@ -1,10 +1,11 @@
 package ch.admin.bj.swiyu.issuer.domain.openid.credentialrequest.holderbinding;
 
 import ch.admin.bj.swiyu.issuer.common.profile.SwissProfileVersions;
+import ch.admin.bj.swiyu.jwtutil.JwtUtilException;
+import ch.admin.bj.swiyu.jwtutil.SignatureVerifiers;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
-import com.nimbusds.jose.crypto.MLDSAVerifier;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
@@ -27,7 +28,6 @@ public final class AttestationJwt {
     private static final String KEY_ATTESTATION_TYPE_ID1 = "keyattestation+jwt";
     private static final Set<AttackPotentialResistance> SUPPORTED_ATTACK_POTENTIAL_RESISTANCE = Set.of(AttackPotentialResistance.ISO_18045_ENHANCED_BASIC, AttackPotentialResistance.ISO_18045_HIGH);
     private static final Set<String> ALLOWED_TYPES = Set.of(KEY_ATTESTATION_TYPE_ID1, "key-attestation+jwt");
-    private static final Set<JWSAlgorithm> ALLOWED_ALGORITHMS = Set.of(JWSAlgorithm.ML_DSA_44, JWSAlgorithm.ML_DSA_65, JWSAlgorithm.ML_DSA_87);
     private final SignedJWT signedJWT;
     private final List<AttackPotentialResistance> attestedAttackPotentialResistance;
     private final JWTClaimsSet claims;
@@ -119,17 +119,16 @@ public final class AttestationJwt {
     }
 
     private static void validateType(JWSHeader header) {
-        var type = header.getAlgorithm();
-        if (type == null || !ALLOWED_TYPES.contains(header.getType().getType())) {
+        var type = header.getType();
+        if (type == null || !ALLOWED_TYPES.contains(type.getType())) {
             throw new IllegalArgumentException("Typ must be one of " + String.join(", ", ALLOWED_TYPES));
         }
     }
 
     private static void validateAlgorithm(JWSHeader header) {
-        var algorithm = header.getAlgorithm();
-        if (algorithm == null || !ALLOWED_ALGORITHMS.contains(algorithm)) {
-            throw new IllegalArgumentException("Algorithm must be one of "
-                    + ALLOWED_ALGORITHMS.stream().map(JWSAlgorithm::getName).collect(Collectors.joining(", ")));
+        // PQEID: only presence here; the policy is checked in isValidAttestation (SignatureVerifiers)
+        if (header.getAlgorithm() == null) {
+            throw new IllegalArgumentException("Algorithm (alg) MUST be set");
         }
         if (StringUtils.isEmpty((header.getKeyID()))) {
             throw new IllegalArgumentException("KeyID MUST be set");
@@ -161,18 +160,18 @@ public final class AttestationJwt {
      * @param resistance  Which resistance must be attested
      * @return true if the attestation is valid and the resistance is matching
      * @throws JOSEException if the fetched Key can not be parsed as a supported JWSVerifier
+     * @throws IllegalArgumentException if the key/algorithm is not acceptable
      */
-    // PQEID: keyResolver resolves the attestation provider's key via DID resolution
-    // (DidKeyResolverFacade -> DidResolverAdapter), which serializes the did_sidekicks
-    // Rust Jwk struct (EC-only fields) through nimbus's generic JWK.parse() - that struct
-    // cannot carry ML-DSA public key material (see pqeid ML-DSA/DID resolver blocker
-    // memory), so this will fail against a real ML-DSA-published attestation provider DID
-    // until that upstream Rust dependency is extended.
-    public boolean isValidAttestation(@NotNull KeyResolver keyResolver, @NotNull List<AttackPotentialResistance> resistance) throws JOSEException {
+    public boolean isValidAttestation(@NotNull KeyResolver keyResolver, @NotNull List<AttackPotentialResistance> resistance,
+                                      @NotNull Set<JWSAlgorithm> accepted) throws JOSEException {
         var header = signedJWT.getHeader();
         var key = keyResolver.resolveKey(header.getKeyID());
-        if (!signedJWT.verify(new MLDSAVerifier(key.toMLDSAKey()))) {
-            throw new JOSEException("JWT verification failed");
+        try {
+            if (!signedJWT.verify(SignatureVerifiers.forKey(key, header.getAlgorithm(), accepted))) {
+                throw new JOSEException("JWT verification failed");
+            }
+        } catch (JwtUtilException e) {
+            throw new IllegalArgumentException(e.getMessage(), e);
         }
         if (resistance.isEmpty()) {
             return true;

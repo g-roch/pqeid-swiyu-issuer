@@ -47,6 +47,8 @@ class DataIntegrityServiceTest {
         objectMapper = new ObjectMapper();
         applicationProperties = mock(ApplicationProperties.class);
         when(applicationProperties.getDataIntegrityKeySet()).thenReturn(new JWKSet(mldsaKey.toPublicJWK()));
+        when(applicationProperties.acceptedSignatureJwsAlgorithms())
+                .thenReturn(ch.admin.bj.swiyu.jwtutil.SignatureVerifiers.MIGRATION_DEFAULT);
 
         dataIntegrityService = new DataIntegrityService(applicationProperties, objectMapper);
     }

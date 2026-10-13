@@ -13,10 +13,12 @@ import ch.admin.bj.swiyu.issuer.domain.openid.credentialrequest.holderbinding.Ho
 import ch.admin.bj.swiyu.issuer.domain.openid.metadata.CredentialConfiguration;
 import ch.admin.bj.swiyu.issuer.domain.openid.metadata.IssuerMetadata;
 import ch.admin.bj.swiyu.jwssignatureservice.factory.strategy.KeyStrategyException;
+import ch.admin.bj.swiyu.jwssignatureservice.SignerAlgorithm;
 import com.authlete.sd.Disclosure;
 import com.authlete.sd.SDJWT;
 import com.authlete.sd.SDObjectBuilder;
 import com.nimbusds.jose.*;
+import com.nimbusds.jose.JWSSigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import jakarta.annotation.Nullable;
@@ -228,14 +230,15 @@ public class SdJwtCredential extends CredentialBuilder {
     private SignedJWT createSignedJWT(ConfigurationOverride override,
                                       SDObjectBuilder builder) {
         try {
-            JWSHeader header = new JWSHeader.Builder(JWSAlgorithm.ML_DSA_44)
+            JWSSigner signer = this.createSigner();
+            JWSHeader header = new JWSHeader.Builder(SignerAlgorithm.of(signer))
                     .type(new JOSEObjectType(SD_JWT_FORMAT))
                     .keyID(override.verificationMethodOrDefault(sdjwtProperties.getVerificationMethod()))
                     .customParam(SwissProfileVersions.PROFILE_VERSION_PARAM, SwissProfileVersions.VC_PROFILE_VERSION)
                     .build();
             JWTClaimsSet claimsSet = JWTClaimsSet.parse(builder.build(true));
             SignedJWT jwt = new SignedJWT(header, claimsSet);
-            jwt.sign(this.createSigner());
+            jwt.sign(signer);
             return jwt;
         } catch (ParseException | JOSEException e) {
             throw new CredentialException(e);

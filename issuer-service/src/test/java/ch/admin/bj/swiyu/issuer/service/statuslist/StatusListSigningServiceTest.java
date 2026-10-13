@@ -12,6 +12,7 @@ import ch.admin.bj.swiyu.jwssignatureservice.factory.strategy.KeyStrategyExcepti
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.JWSSigner;
+import com.nimbusds.jose.JWSInput;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.crypto.MLDSASigner;
 import com.nimbusds.jose.jwk.MLDSAKey;
@@ -103,11 +104,32 @@ class StatusListSigningServiceTest {
         TokenStatusListToken token = new TokenStatusListToken(1, 4);
 
         JWSSigner failingSigner = mock(JWSSigner.class);
-        when(failingSigner.sign(any(), any(byte[].class))).thenThrow(new JOSEException("simulated signing failure"));
+        // PQEID: the header alg is derived from the signer, so the mock must declare one
+        when(failingSigner.supportedJWSAlgorithms()).thenReturn(java.util.Set.of(JWSAlgorithm.ML_DSA_44));
+        when(failingSigner.sign(any(), any(JWSInput.class))).thenThrow(new JOSEException("simulated signing failure"));
         when(jwsSignatureFacade.createSigner(statusListProperties, null, null)).thenReturn(failingSigner);
 
         // Act / Assert
         assertThrows(ConfigurationException.class, () -> sut.buildSignedStatusListJwt(statusList, token));
+    }
+
+    @Test
+    void buildSignedStatusListJwt_compositeKey_headerAlgFollowsKey() throws Exception {
+        // Arrange
+        java.security.Security.addProvider(
+                com.nimbusds.jose.crypto.bc.BouncyCastleProviderSingleton.getInstance());
+        var kp = java.security.KeyPairGenerator
+                .getInstance("MLDSA65-ECDSA-P256-SHA512", "BC").generateKeyPair();
+        var key = com.nimbusds.jose.jwk.CompositeMLDSAKey.fromJCA(kp.getPublic(), kp.getPrivate());
+        when(jwsSignatureFacade.createSigner(statusListProperties, null, null))
+                .thenReturn(new com.nimbusds.jose.crypto.CompositeSigner(key));
+        var statusList = StatusList.builder().uri("https://registry.example/status/c").build();
+
+        SignedJWT signed = sut.buildSignedStatusListJwt(statusList, new TokenStatusListToken(1, 4));
+
+        // Act / Assert
+        assertEquals(JWSAlgorithm.ML_DSA_65_ES256, signed.getHeader().getAlgorithm());
+        assertTrue(signed.verify(new com.nimbusds.jose.crypto.CompositeVerifier(key.toPublicJWK())));
     }
 
     private JWSSigner createDummySigner() throws JOSEException {

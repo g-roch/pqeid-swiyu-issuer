@@ -1,14 +1,16 @@
 package ch.admin.bj.swiyu.issuer.infrastructure.health;
 
+import ch.admin.bj.swiyu.issuer.common.config.ApplicationProperties;
 import ch.admin.bj.swiyu.issuer.common.config.SignatureConfiguration;
 import ch.admin.bj.swiyu.issuer.domain.openid.credentialrequest.holderbinding.KeyResolver;
 import ch.admin.bj.swiyu.issuer.service.JwsSignatureFacade;
+import ch.admin.bj.swiyu.jwtutil.SignatureVerifiers;
 import ch.admin.bj.swiyu.jwssignatureservice.factory.strategy.KeyStrategyException;
+import ch.admin.bj.swiyu.jwssignatureservice.SignerAlgorithm;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
 import com.nimbusds.jose.JWSVerifier;
-import com.nimbusds.jose.crypto.MLDSAVerifier;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
@@ -29,13 +31,16 @@ public abstract class AbstractSigningKeyVerificationHealthChecker<T extends Sign
     private final KeyResolver keyResolver;
     private final JwsSignatureFacade jwsSignatureFacade;
     private final T properties;
+    private final ApplicationProperties applicationProperties;
 
     protected AbstractSigningKeyVerificationHealthChecker(KeyResolver keyResolver,
                                                           JwsSignatureFacade jwsSignatureFacade,
-                                                          T properties) {
+                                                          T properties,
+                                                          ApplicationProperties applicationProperties) {
         this.keyResolver = keyResolver;
         this.jwsSignatureFacade = jwsSignatureFacade;
         this.properties = properties;
+        this.applicationProperties = applicationProperties;
     }
 
     @Override
@@ -65,28 +70,23 @@ public abstract class AbstractSigningKeyVerificationHealthChecker<T extends Sign
     private boolean verifySigningCapability(JWK jwk) throws KeyStrategyException, JOSEException {
         var signer = jwsSignatureFacade.createSigner(properties, null, null);
 
-        SignedJWT testJwt = createTestJwt();
+        SignedJWT testJwt = createTestJwt(SignerAlgorithm.of(signer));
         testJwt.sign(signer);
         return verifySignature(testJwt, jwk);
     }
 
-    private SignedJWT createTestJwt() {
-        JWSHeader header = new JWSHeader.Builder(JWSAlgorithm.ML_DSA_44).build();
+    private SignedJWT createTestJwt(JWSAlgorithm alg) {
+        JWSHeader header = new JWSHeader.Builder(alg).build();
         JWTClaimsSet payload = new JWTClaimsSet.Builder()
             .subject(TEST_JWT_SUBJECT)
             .build();
         return new SignedJWT(header, payload);
     }
 
-    // PQEID: jwk is resolved via DidResolverAdapter, which serializes the did_sidekicks
-    // Rust Jwk struct (EC-only fields) through nimbus's generic JWK.parse() - that struct
-    // cannot carry ML-DSA public key material (see pqeid ML-DSA/DID resolver blocker
-    // memory), so this health check is expected to report DOWN against a real ML-DSA
-    // verification method until that upstream Rust dependency is extended.
-    private boolean verifySignature(SignedJWT signedJwt, JWK jwk) throws JOSEException{
-        JWK publicKey = jwk.toMLDSAKey();
-
-        JWSVerifier verifier = new MLDSAVerifier(publicKey.toMLDSAKey());
+    // PQEID: the DID-resolved public key checks our own signature, via the issuer policy
+    private boolean verifySignature(SignedJWT signedJwt, JWK jwk) throws JOSEException {
+        JWSVerifier verifier = SignatureVerifiers.forKey(jwk, signedJwt.getHeader().getAlgorithm(),
+                applicationProperties.acceptedSignatureJwsAlgorithms());
         return signedJwt.verify(verifier);
     }
 

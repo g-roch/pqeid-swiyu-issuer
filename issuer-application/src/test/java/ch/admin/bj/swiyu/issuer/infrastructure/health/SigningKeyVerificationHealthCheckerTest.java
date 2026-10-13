@@ -1,5 +1,6 @@
 package ch.admin.bj.swiyu.issuer.infrastructure.health;
 
+import ch.admin.bj.swiyu.issuer.common.config.ApplicationProperties;
 import ch.admin.bj.swiyu.issuer.common.config.SdjwtProperties;
 import ch.admin.bj.swiyu.issuer.domain.openid.credentialrequest.holderbinding.KeyResolver;
 import ch.admin.bj.swiyu.issuer.service.JwsSignatureFacade;
@@ -31,11 +32,13 @@ class SigningKeyVerificationHealthCheckerTest {
     private KeyResolver keyResolver;
     private JwsSignatureFacade jwsSignatureFacade;
     private SdjwtProperties properties;
+    private ApplicationProperties applicationProperties;
 
     // Concrete minimal subclass to expose performCheck
     private static class TestChecker extends AbstractSigningKeyVerificationHealthChecker<SdjwtProperties> {
-        protected TestChecker(KeyResolver keyResolver, JwsSignatureFacade jwsSignatureFacade, SdjwtProperties properties) {
-            super(keyResolver, jwsSignatureFacade, properties);
+        protected TestChecker(KeyResolver keyResolver, JwsSignatureFacade jwsSignatureFacade, SdjwtProperties properties,
+                              ApplicationProperties applicationProperties) {
+            super(keyResolver, jwsSignatureFacade, properties, applicationProperties);
         }
     }
 
@@ -45,6 +48,9 @@ class SigningKeyVerificationHealthCheckerTest {
         jwsSignatureFacade = Mockito.mock(JwsSignatureFacade.class);
         properties = new SdjwtProperties();
         properties.setVerificationMethod("did:example:123#key-1");
+        applicationProperties = Mockito.mock(ApplicationProperties.class);
+        when(applicationProperties.acceptedSignatureJwsAlgorithms())
+                .thenReturn(ch.admin.bj.swiyu.jwtutil.SignatureVerifiers.MIGRATION_DEFAULT);
 
         // Provide a mock JWK for DID resolution (public ML-DSA key). This mocks KeyResolver
         // directly (a Java JWK in, JWK out interface) rather than going through a real
@@ -60,7 +66,7 @@ class SigningKeyVerificationHealthCheckerTest {
 
     @Test
     void performCheck_successfulVerification_setsUpStatus() {
-        var checker = new TestChecker(keyResolver, jwsSignatureFacade, properties);
+        var checker = new TestChecker(keyResolver, jwsSignatureFacade, properties, applicationProperties);
         Health.Builder builder = Health.up(); // initial state, will be overridden
         checker.performCheck(builder);
         var result = builder.build();
@@ -73,13 +79,47 @@ class SigningKeyVerificationHealthCheckerTest {
     void performCheck_failedDidResolution_setsDownStatus() {
         properties.setVerificationMethod("did:example:unknown#k1");
         when(keyResolver.resolveKey("did:example:unknown#k1")).thenReturn(null); // simulate failure
-        var checker = new TestChecker(keyResolver, jwsSignatureFacade, properties);
+        var checker = new TestChecker(keyResolver, jwsSignatureFacade, properties, applicationProperties);
         Health.Builder builder = Health.up();
         checker.performCheck(builder);
         var result = builder.build();
         assertEquals(Status.DOWN, result.getStatus());
         assertTrue(result.getDetails().containsKey("failedDids"));
         assertEquals("did:example:unknown#k1", result.getDetails().get("failedDids"));
+    }
+
+    @Test
+    void performCheck_compositeKey_setsUpStatus() throws Exception {
+        // Arrange
+        java.security.Security.addProvider(com.nimbusds.jose.crypto.bc.BouncyCastleProviderSingleton.getInstance());
+        var kp = java.security.KeyPairGenerator.getInstance("MLDSA65-ECDSA-P256-SHA512", "BC").generateKeyPair();
+        var key = com.nimbusds.jose.jwk.CompositeMLDSAKey.fromJCA(kp.getPublic(), kp.getPrivate());
+        when(keyResolver.resolveKey("did:example:123#key-1")).thenReturn(key.toPublicJWK());
+        when(jwsSignatureFacade.createSigner(any(), any(), any()))
+                .thenReturn(new com.nimbusds.jose.crypto.CompositeSigner(key));
+        var checker = new TestChecker(keyResolver, jwsSignatureFacade, properties, applicationProperties);
+
+        // Act
+        Health.Builder builder = Health.up();
+        checker.performCheck(builder);
+
+        // Assert
+        assertEquals(Status.UP, builder.build().getStatus());
+    }
+
+    @Test
+    void performCheck_keyOutsidePolicy_setsDownStatus() {
+        // Arrange: the setup's ML-DSA-44 key, but a composite-only (contract) policy
+        when(applicationProperties.acceptedSignatureJwsAlgorithms())
+                .thenReturn(java.util.Set.of(JWSAlgorithm.ML_DSA_65_ES256));
+        var checker = new TestChecker(keyResolver, jwsSignatureFacade, properties, applicationProperties);
+
+        // Act
+        Health.Builder builder = Health.up();
+        checker.performCheck(builder);
+
+        // Assert
+        assertEquals(Status.DOWN, builder.build().getStatus());
     }
 }
 

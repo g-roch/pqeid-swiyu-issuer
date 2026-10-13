@@ -8,10 +8,12 @@ import ch.admin.bj.swiyu.issuer.domain.credentialoffer.StatusList;
 import ch.admin.bj.swiyu.issuer.domain.credentialoffer.TokenStatusListToken;
 import ch.admin.bj.swiyu.issuer.service.JwsSignatureFacade;
 import ch.admin.bj.swiyu.jwssignatureservice.factory.strategy.KeyStrategyException;
+import ch.admin.bj.swiyu.jwssignatureservice.SignerAlgorithm;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JOSEObjectType;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.JWSHeader;
+import com.nimbusds.jose.JWSSigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import lombok.RequiredArgsConstructor;
@@ -41,10 +43,12 @@ public class StatusListSigningService {
     private final JwsSignatureFacade jwsSignatureFacade;
 
     public SignedJWT buildSignedStatusListJwt(StatusList statusList, TokenStatusListToken token) {
-        SignedJWT jwt = buildUnsignedStatusListJwt(statusList, token);
         var override = statusList.getConfigurationOverride();
         try {
-            jwt.sign(jwsSignatureFacade.createSigner(statusListProperties, override.keyId(), override.keyPin()));
+            JWSSigner signer = jwsSignatureFacade.createSigner(
+                    statusListProperties, override.keyId(), override.keyPin());
+            SignedJWT jwt = buildUnsignedStatusListJwt(statusList, token, SignerAlgorithm.of(signer));
+            jwt.sign(signer);
             return jwt;
         } catch (JOSEException | KeyStrategyException e) {
             log.error("Failed to sign status list JWT with the provided key.");
@@ -52,10 +56,10 @@ public class StatusListSigningService {
         }
     }
 
-    private SignedJWT buildUnsignedStatusListJwt(StatusList statusList, TokenStatusListToken token) {
+    private SignedJWT buildUnsignedStatusListJwt(StatusList statusList, TokenStatusListToken token, JWSAlgorithm alg) {
         var override = statusList.getConfigurationOverride();
 
-        JWSHeader header = new JWSHeader.Builder(JWSAlgorithm.ML_DSA_44)
+        JWSHeader header = new JWSHeader.Builder(alg)
                 .keyID(override.verificationMethodOrDefault(statusListProperties.getVerificationMethod()))
                 .type(new JOSEObjectType("statuslist+jwt"))
                 .customParam(SwissProfileVersions.PROFILE_VERSION_PARAM, SwissProfileVersions.VC_PROFILE_VERSION)

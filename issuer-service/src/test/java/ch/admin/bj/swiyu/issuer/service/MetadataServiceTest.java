@@ -19,6 +19,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSSigner;
 import com.nimbusds.jose.JWSAlgorithm;
+import com.nimbusds.jose.JWSInput;
 import com.nimbusds.jose.crypto.MLDSASigner;
 import com.nimbusds.jose.jwk.MLDSAKey;
 import com.nimbusds.jose.jwk.gen.MLDSAKeyGenerator;
@@ -120,7 +121,9 @@ class MetadataServiceTest {
         when(credentialManagementService.getConfigurationOverrideByTenantId(tenantId)).thenReturn(override);
 
         JWSSigner signer = mock(JWSSigner.class);
-        when(signer.sign(any(), any(byte[].class))).thenThrow(new JOSEException("bad"));
+        // PQEID: the header alg is derived from the signer, so the mock must declare one
+        when(signer.supportedJWSAlgorithms()).thenReturn(java.util.Set.of(JWSAlgorithm.ML_DSA_44));
+        when(signer.sign(any(), any(JWSInput.class))).thenThrow(new JOSEException("bad"));
         when(jwsSignatureFacade.createSigner(sdjwtProperties, null, null)).thenReturn(signer);
 
         assertThrows(ConfigurationException.class, () -> metadataService.getSignedIssuerMetadata(tenantId));
@@ -243,7 +246,9 @@ class MetadataServiceTest {
 
         // Mock a signer that fails when sign() is called
         JWSSigner failingSigner = mock(JWSSigner.class);
-        when(failingSigner.sign(any(), any(byte[].class)))
+        // PQEID: the header alg is derived from the signer, so the mock must declare one
+        when(failingSigner.supportedJWSAlgorithms()).thenReturn(java.util.Set.of(JWSAlgorithm.ML_DSA_44));
+        when(failingSigner.sign(any(), any(JWSInput.class)))
                 .thenThrow(new JOSEException("simulated signing failure"));
         when(jwsSignatureFacade.createSigner(sdjwtProperties, null, null))
                 .thenReturn(failingSigner);

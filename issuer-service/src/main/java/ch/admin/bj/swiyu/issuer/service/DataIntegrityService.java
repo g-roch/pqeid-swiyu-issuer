@@ -54,7 +54,8 @@ public class DataIntegrityService {
                 log.error("Data integrity JWT is missing for offer {}", offerIdentifier);
                 throw new BadRequestException("Data integrity JWT is missing");
             }
-            return JwtUtil.verifyJwt(jwtString, applicationProperties.getDataIntegrityKeySet());
+            return JwtUtil.verifyJwt(jwtString, applicationProperties.getDataIntegrityKeySet(),
+                    applicationProperties.acceptedSignatureJwsAlgorithms());
         } catch (JwtUtilException e) {
             log.error("Failed setting up Data Integrity check of offer {} with JWKS {} - caused by {}", offerIdentifier, applicationProperties.getDataIntegrityJwks(), e.getMessage(), e);
             throw new BadRequestException(e.getMessage(), e);

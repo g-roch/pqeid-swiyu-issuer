@@ -1,5 +1,6 @@
 package ch.admin.bj.swiyu.issuer.service.credential;
 
+import  ch.admin.bj.swiyu.jwtutil.SignatureVerifiers;
 import ch.admin.bj.swiyu.issuer.common.config.ApplicationProperties;
 import ch.admin.bj.swiyu.issuer.common.exception.Oid4vcException;
 import ch.admin.bj.swiyu.issuer.domain.openid.credentialrequest.holderbinding.*;
@@ -34,6 +35,8 @@ class KeyAttestationServiceTest {
         keyAttestationService = new KeyAttestationService(keyResolver, applicationProperties);
 
         when(applicationProperties.isSwissProfileVersioningEnforcement()).thenReturn(false);
+        when(applicationProperties.acceptedSignatureJwsAlgorithms())
+              .thenReturn(SignatureVerifiers.MIGRATION_DEFAULT);
     }
 
     @Test
@@ -95,7 +98,7 @@ class KeyAttestationServiceTest {
         try (MockedStatic<AttestationJwt> staticMock = mockStatic(AttestationJwt.class)) {
             staticMock.when(() -> AttestationJwt.parseJwt(jwt, false)).thenReturn(attestationJwt);
             when(applicationProperties.getTrustedAttestationProviders()).thenReturn(Collections.emptyList());
-            when(attestationJwt.isValidAttestation(keyResolver, List.of(AttackPotentialResistance.ISO_18045_HIGH))).thenReturn(true);
+            when(attestationJwt.isValidAttestation(keyResolver, List.of(AttackPotentialResistance.ISO_18045_HIGH), SignatureVerifiers.MIGRATION_DEFAULT)).thenReturn(true);
             when(attestationJwt.containsKey(any(MLDSAKey.class))).thenReturn(true);
             assertDoesNotThrow(() -> keyAttestationService.getAndValidateKeyAttestation(requirement, proofJwt));
         }
@@ -133,7 +136,7 @@ class KeyAttestationServiceTest {
         try (MockedStatic<AttestationJwt> staticMock = mockStatic(AttestationJwt.class)) {
             staticMock.when(() -> AttestationJwt.parseJwt(jwt, false)).thenReturn(attestationJwt);
             when(applicationProperties.getTrustedAttestationProviders()).thenReturn(Collections.emptyList());
-            when(attestationJwt.isValidAttestation(keyResolver, List.of(AttackPotentialResistance.ISO_18045_HIGH))).thenReturn(false);
+            when(attestationJwt.isValidAttestation(keyResolver, List.of(AttackPotentialResistance.ISO_18045_HIGH), SignatureVerifiers.MIGRATION_DEFAULT)).thenReturn(false);
 
             Oid4vcException ex = assertThrows(Oid4vcException.class, () ->
                     keyAttestationService.getAndValidateKeyAttestation(requirement, proofJwt));
@@ -168,7 +171,7 @@ class KeyAttestationServiceTest {
         AttestationJwt attestationJwt = mock(AttestationJwt.class);
         try (MockedStatic<AttestationJwt> staticMock = mockStatic(AttestationJwt.class)) {
             staticMock.when(() -> AttestationJwt.parseJwt(jwt, false)).thenReturn(attestationJwt);
-            when(attestationJwt.isValidAttestation(any(), any())).thenThrow(new JOSEException("JOSEException"));
+            when(attestationJwt.isValidAttestation(any(), any(), any())).thenThrow(new JOSEException("JOSEException"));
             when(applicationProperties.getTrustedAttestationProviders()).thenReturn(Collections.emptyList());
 
             Oid4vcException ex = assertThrows(Oid4vcException.class, () ->
@@ -197,7 +200,7 @@ class KeyAttestationServiceTest {
         try (MockedStatic<AttestationJwt> staticMock = mockStatic(AttestationJwt.class)) {
             staticMock.when(() -> AttestationJwt.parseJwt(jwt, false)).thenReturn(attestationJwt);
             when(applicationProperties.getTrustedAttestationProviders()).thenReturn(Collections.emptyList());
-            when(attestationJwt.isValidAttestation(keyResolver, List.of(AttackPotentialResistance.ISO_18045_HIGH))).thenReturn(true);
+            when(attestationJwt.isValidAttestation(keyResolver, List.of(AttackPotentialResistance.ISO_18045_HIGH), SignatureVerifiers.MIGRATION_DEFAULT)).thenReturn(true);
             // containsKey returns false: Key B is NOT in the attestation for Key A
             when(attestationJwt.containsKey(any(MLDSAKey.class))).thenReturn(false);
 
@@ -226,7 +229,7 @@ class KeyAttestationServiceTest {
         try (MockedStatic<AttestationJwt> staticMock = mockStatic(AttestationJwt.class)) {
             staticMock.when(() -> AttestationJwt.parseJwt(jwt, false)).thenReturn(attestationJwt);
             when(applicationProperties.getTrustedAttestationProviders()).thenReturn(Collections.emptyList());
-            when(attestationJwt.isValidAttestation(keyResolver, List.of(AttackPotentialResistance.ISO_18045_HIGH))).thenReturn(true);
+            when(attestationJwt.isValidAttestation(keyResolver, List.of(AttackPotentialResistance.ISO_18045_HIGH), SignatureVerifiers.MIGRATION_DEFAULT)).thenReturn(true);
 
             Oid4vcException ex = assertThrows(Oid4vcException.class, () ->
                     keyAttestationService.getAndValidateKeyAttestation(requirement, proofJwt));

@@ -5,12 +5,17 @@ import ch.admin.bj.swiyu.issuer.domain.credentialoffer.CredentialOffer;
 import ch.admin.bj.swiyu.issuer.domain.credentialoffer.CredentialOfferStatusType;
 import ch.admin.bj.swiyu.issuer.service.test.TestServiceUtils;
 import com.nimbusds.jose.*;
+import com.nimbusds.jose.util.Base64URL;
 import com.nimbusds.jose.crypto.MLDSASigner;
 import com.nimbusds.jose.jwk.KeyUse;
 import com.nimbusds.jose.jwk.MLDSAKey;
 import com.nimbusds.jose.jwk.gen.MLDSAKeyGenerator;
+import com.nimbusds.jose.crypto.CompositeSigner;
+import com.nimbusds.jose.jwk.CompositeMLDSAKey;
+import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import com.nimbusds.jose.util.JSONObjectUtils;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,6 +23,9 @@ import org.junit.jupiter.api.Test;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
+
+import java.nio.charset.StandardCharsets;
+
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
@@ -169,4 +177,88 @@ class ProofJwtTest {
     private @NotNull String getNonce() {
         return new SelfContainedNonce(nonceSecret).getNonce();
     }
+
+    private static CompositeMLDSAKey compositeKey() throws Exception {
+        java.security.Security.addProvider(
+                com.nimbusds.jose.crypto.bc.BouncyCastleProviderSingleton.getInstance());
+        var kp = java.security.KeyPairGenerator.getInstance("MLDSA65-ECDSA-P256-SHA512", "BC")
+                .generateKeyPair();
+        return CompositeMLDSAKey.fromJCA(kp.getPublic(), kp.getPrivate());
+    }
+
+    /** A proof signed by {@code signer}, carrying {@code headerJwk}, built like a wallet does. */
+    private String proof(JWSAlgorithm alg, JWK headerJwk, JWSSigner signer, String nonce) throws JOSEException {
+        var header = new JWSHeader.Builder(alg)
+                .type(new JOSEObjectType(ProofType.JWT.getClaimTyp()))
+                .jwk(headerJwk)
+                .build();
+        var claims = new JWTClaimsSet.Builder()
+                .claim("nonce", nonce)
+                .claim("aud", "http://issuer.com")
+                .issueTime(new Date())
+                .build();
+        var jwt = new SignedJWT(header, claims);
+        jwt.sign(signer);
+        return jwt.serialize();
+    }
+
+    private static final List<String> ADVERTISED = List.of("ML-DSA-44", "ML-DSA-65-ES256");
+    private static long inTenMinutes() {
+        return Instant.now().plusSeconds(600).getEpochSecond();
+    }
+
+    @Test
+    void compositeProof_whenAdvertised_thenValid() throws Exception {
+        // Arrange
+        CompositeMLDSAKey key = compositeKey();
+        String p = proof(JWSAlgorithm.ML_DSA_65_ES256, key.toPublicJWK(), new CompositeSigner(key), getNonce());
+        ProofJwt proofJwt = new ProofJwt(ProofType.JWT, p, 10, 120, nonceSecret);
+
+        // Act / Assert
+        assertTrue(proofJwt.isValidHolderBinding("http://issuer.com", ADVERTISED, inTenMinutes()));
+         assertEquals(key.toPublicJWK(), JWK.parse(proofJwt.getBinding()));
+    }
+
+    @Test
+    void compositeProof_whenNotAdvertised_thenRejected() throws Exception {
+        // Arrange
+        CompositeMLDSAKey key = compositeKey();
+        String p = proof(JWSAlgorithm.ML_DSA_65_ES256, key.toPublicJWK(), new CompositeSigner(key), getNonce());
+        ProofJwt proofJwt = new ProofJwt(ProofType.JWT, p, 10, 120, nonceSecret);
+
+        // Act / Assert
+        assertThrows(Oid4vcException.class,
+                () -> proofJwt.isValidHolderBinding("http://issuer.com", List.of("ML-DSA-44"), inTenMinutes()));
+    }
+
+    /** A hand-crafted proof whose header carries the PRIVATE jwk (nimbus's builder refuses to build one). */
+    private String proofWithPrivateJwkInHeader(MLDSAKey key, String nonce) throws Exception {
+        Map<String, Object> header = new LinkedHashMap<>();
+        header.put("alg", "ML-DSA-44");
+        header.put("typ", ProofType.JWT.getClaimTyp());
+        header.put("jwk", key.toJSONObject());   // includes "priv"
+        var claims = new JWTClaimsSet.Builder()
+                .claim("nonce", nonce)
+                .claim("aud", "http://issuer.com")
+                .issueTime(new Date())
+                .build();
+        String signingInput = Base64URL.encode(JSONObjectUtils.toJSONString(header)) + "."
+                + Base64URL.encode(claims.toString());
+        Base64URL signature = new MLDSASigner(key).sign(new JWSHeader(JWSAlgorithm.ML_DSA_44),
+                signingInput.getBytes(StandardCharsets.US_ASCII));
+        return signingInput + "." + signature;
+    }
+
+    /** nimbus refuses a private key in the jwk header when parsing; the proof must be rejected. */
+    @Test
+    void privateKeyInProofHeader_rejected() throws Exception {
+        // Arrange
+        String p = proofWithPrivateJwkInHeader(jwk, getNonce());
+        ProofJwt proofJwt = new ProofJwt(ProofType.JWT, p, 10, 120, nonceSecret);
+
+        // Act / Assert
+        assertThrows(Oid4vcException.class,
+                () -> proofJwt.isValidHolderBinding("http://issuer.com", ADVERTISED, inTenMinutes()));
+    }
+
 }

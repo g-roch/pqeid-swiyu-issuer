@@ -1,6 +1,7 @@
 package ch.admin.bj.swiyu.issuer.common.config;
 
 import ch.admin.bj.swiyu.issuer.common.exception.ConfigurationException;
+import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.jwk.JWKSet;
 import jakarta.annotation.Nullable;
 import jakarta.annotation.PostConstruct;
@@ -17,6 +18,8 @@ import java.text.ParseException;
 import java.time.Duration;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Validated
@@ -48,6 +51,18 @@ public class ApplicationProperties {
      */
     @NotNull
     private List<String> trustedAttestationProviders;
+
+     // PQEID: JWS algorithms accepted for signatures verified against DID keys (key attestations,
+    // data integrity). Holder proofs use the per-credential proof_signing_alg_values_supported instead.
+    @NotEmpty
+    private List<String> acceptedSignatureAlgorithms = List.of("ML-DSA-44", "ML-DSA-65-ES256");
+
+    /** The policy as nimbus algorithms (not a JavaBean getter, so Spring doesn't try to bind it). */
+    public Set<JWSAlgorithm> acceptedSignatureJwsAlgorithms() {
+        return acceptedSignatureAlgorithms.stream()
+                .map(JWSAlgorithm::parse)
+                .collect(Collectors.toUnmodifiableSet());
+    }
 
     /**
      * If set to true the service expects all

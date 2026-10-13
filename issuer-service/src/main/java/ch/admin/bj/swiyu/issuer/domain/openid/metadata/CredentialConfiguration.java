@@ -99,7 +99,7 @@ public class CredentialConfiguration {
      */
     @JsonProperty("credential_signing_alg_values_supported")
     @Valid
-    private List<@Pattern(regexp = "^ML-DSA-(44|65|87)$") String> credentialSigningAlgorithmsSupported;
+     private List<@Pattern(regexp = "^(ML-DSA-(44|65|87)|ML-DSA-65-ES256)$") String> credentialSigningAlgorithmsSupported;
 
     /**
      * Define what kind of proof the holder is allowed to provide for the credential

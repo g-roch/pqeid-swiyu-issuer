@@ -127,6 +127,7 @@ application:
   min-deferred-offer-interval-seconds: ${MIN_DEFERRED_OFFER_WAITING_SECONDS:10}
   # List of DID of Attestation providers we trust in
   trusted-attestation-providers: ${TRUSTED_ATTESTATION_PROVIDERS:}
+  accepted-signature-algorithms: ${ACCEPTED_SIGNATURE_ALGORITHMS:ML-DSA-44,ML-DSA-65-ES256} # PQEID policy
   enable-jwt-authentication: ${ENABLE_JWT_AUTH:false}
   # Flag to enable the storage of hashes of *each* VC signed by the generic issuer. This is the JWS of the SD-JWT VC.
   # This is more reliable than using the already present key_attestations,
